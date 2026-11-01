@@ -24,6 +24,20 @@ RUN apk add --no-cache openssl libc6-compat
 
 ENV NODE_ENV=production
 
+ARG DATABASE_URL
+ARG REDIS_HOST
+ARG REDIS_PORT
+ARG REDIS_PASSWORD
+ARG JWT_ACCESS_SECRET
+ARG JWT_REFRESH_SECRET
+
+ENV DATABASE_URL=$DATABASE_URL
+ENV REDIS_HOST=$REDIS_HOST
+ENV REDIS_PORT=$REDIS_PORT
+ENV REDIS_PASSWORD=$REDIS_PASSWORD
+ENV JWT_ACCESS_SECRET=$JWT_ACCESS_SECRET
+ENV JWT_REFRESH_SECRET=$JWT_REFRESH_SECRET
+
 COPY package*.json ./
 RUN npm install --omit=dev
 
@@ -33,5 +47,5 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/main"]
+CMD ["sh", "-c", "if [ -n \"$DATABASE_URL\" ]; then npx prisma db push --skip-generate; fi && node dist/main"]
 
