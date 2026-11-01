@@ -1,0 +1,3 @@
+# SabeGanha Admin Robots
+User-agent: *
+Disallow: /
