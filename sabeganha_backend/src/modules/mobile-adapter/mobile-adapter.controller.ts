@@ -104,9 +104,45 @@ export class MobileAdapterController {
     return this.mobileAdapterService.getLiveContest();
   }
 
-  @Post(['live_content', 'get_live_content'])
-  @ApiOperation({ summary: 'Conteúdos em destaque' })
+  @Post(['live_content', 'get_live_content', 'get_contest', 'contest'])
+  @ApiOperation({ summary: 'Conteúdos em destaque e concursos' })
   async liveContent() {
-    return this.mobileAdapterService.getLiveContest();
+    return { status: 200, message: 'success', result: [] };
+  }
+
+  @Post(['withdrawal_list', 'get_withdrawal_list'])
+  @ApiOperation({ summary: 'Histórico de resgates e saques' })
+  async withdrawalList() {
+    return { status: 200, message: 'success', result: [] };
+  }
+
+  @Post(['get_skill', 'skill'])
+  @ApiOperation({ summary: 'Skills do quiz' })
+  async getSkill() {
+    return { status: 200, message: 'success', result: [] };
+  }
+
+  @Post(['get_classification', 'classification'])
+  @ApiOperation({ summary: 'Classificações do quiz' })
+  async getClassification() {
+    return { status: 200, message: 'success', result: [] };
+  }
+
+  @Post(['get_level', 'level'])
+  @ApiOperation({ summary: 'Níveis de quiz' })
+  async getLevel() {
+    return { status: 200, message: 'success', result: [] };
+  }
+
+  @Post(['transaction', 'get_transaction', 'transaction_list'])
+  @ApiOperation({ summary: 'Transações de pontos' })
+  async getTransaction() {
+    return { status: 200, message: 'success', result: [] };
+  }
+
+  @Post(['get_refer_earn_history', 'refer_earn_history'])
+  @ApiOperation({ summary: 'Histórico de indicações' })
+  async getReferEarnHistory() {
+    return { status: 200, message: 'success', result: [] };
   }
 }
