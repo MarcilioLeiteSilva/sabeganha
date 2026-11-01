@@ -19,7 +19,24 @@ async function bootstrap() {
   });
 
   // Global Prefix
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix('api/v1', { exclude: ['/', 'health'] });
+
+  // Direct root & health check handlers on Express
+  const expressInstance = app.getHttpAdapter().getInstance();
+  expressInstance.get('/', (req, res) => {
+    res.json({
+      name: 'SabeGanha Core API',
+      version: '1.0.0',
+      status: 'online',
+      docs: '/api/docs',
+    });
+  });
+  expressInstance.get('/health', (req, res) => {
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+    });
+  });
 
   // Global Validation
   app.useGlobalPipes(
@@ -47,6 +64,18 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
   logger.log(`🚀 SabeGanha API rodando na porta ${port} no ambiente ${process.env.NODE_ENV || 'development'}`);
   logger.log(`📖 Documentação Swagger disponível em: http://localhost:${port}/api/docs`);
+
+  if (Number(port) !== 80) {
+    try {
+      const http = await import('http');
+      const fallbackServer = http.createServer(expressInstance);
+      fallbackServer.listen(80, '0.0.0.0', () => {
+        logger.log(`🌐 Fallback HTTP listener ativo também na porta 80`);
+      });
+    } catch (e: any) {
+      logger.warn(`Fallback na porta 80 não iniciado: ${e?.message}`);
+    }
+  }
 }
 bootstrap();
 

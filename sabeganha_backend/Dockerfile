@@ -45,7 +45,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-EXPOSE 3000
+EXPOSE 3000 80
 
 CMD ["sh", "-c", "if [ -n \"$DATABASE_URL\" ]; then npx prisma db push --skip-generate; fi && if [ -f dist/main.js ]; then node dist/main.js; else node dist/src/main.js; fi"]
 
