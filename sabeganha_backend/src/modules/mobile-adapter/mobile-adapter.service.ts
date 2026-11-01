@@ -92,8 +92,8 @@ export class MobileAdapterService {
         status: c.isActive ? 1 : 0,
         order: c.orderIndex,
         total_quizzes: c._count.quizzes,
-        created_at: c.createdAt.toISOString(),
-        updated_at: c.updatedAt.toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })),
     };
   }
@@ -301,11 +301,11 @@ export class MobileAdapterService {
       try {
         await this.walletService.credit(
           userId,
-          CurrencyType.QUIZ_COINS,
           pointsToCredit,
+          CurrencyType.QUIZ_COINS,
           'REWARD_CREDIT',
-          `Recompensa por conclusão de quiz educativo (${data.quiz_id || 'geral'})`,
           `quiz_completion_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+          `Recompensa por conclusão de quiz educativo (${data.quiz_id || 'geral'})`,
         );
         this.logger.log(`Creditadas ${pointsToCredit} Quiz Coins no Ledger para ${userId}`);
       } catch (err: any) {
@@ -347,7 +347,7 @@ export class MobileAdapterService {
         name: r.title,
         price: Number(r.costPoints),
         coin: Number(r.costPoints),
-        image: r.imageUrl || '',
+        image: '',
         description: `${r.description}\n\nParceiro: ${r.partnerName}\nTermos: ${r.termsAndConditions || 'Válido conforme disponibilidade.'}`,
         stock: r.stockQuantity,
         partner: r.partnerName,
