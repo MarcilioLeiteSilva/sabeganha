@@ -95,3 +95,4 @@ export class MobileAdapterController {
     return this.mobileAdapterService.getLiveContest();
   }
 }
+

@@ -11,3 +11,4 @@ import { WalletModule } from '../wallet/wallet.module';
   exports: [MobileAdapterService],
 })
 export class MobileAdapterModule {}
+
