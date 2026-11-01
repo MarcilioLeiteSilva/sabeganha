@@ -1,0 +1,414 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -------------------------------------------------------------
+// 1. USUÁRIOS E SEGURANÇA
+// -------------------------------------------------------------
+
+enum UserRole {
+  USER
+  CONTENT_CREATOR
+  FINANCIAL_AUDITOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String    @unique @db.VarChar(255)
+  passwordHash  String?   @map("password_hash") @db.VarChar(255)
+  role          UserRole  @default(USER)
+  isVerified    Boolean   @default(false) @map("is_verified")
+  is18Plus      Boolean   @default(false) @map("is_18_plus")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  profile       Profile?
+  wallet        Wallet?
+  sessions      QuizSession[]
+  badges        UserBadge[]
+  checkins      DailyCheckin[]
+  redemptions   Redemption[]
+  consents      Consent[]
+  fraudEvents   FraudEvent[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+model Profile {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @map("user_id") @db.Uuid
+  displayName String   @map("display_name") @db.VarChar(100)
+  avatarUrl   String?  @map("avatar_url") @db.VarChar(500)
+  birthDate   DateTime @map("birth_date") @db.Date
+  state       String?  @db.VarChar(2)
+  city        String?  @db.VarChar(100)
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+// -------------------------------------------------------------
+// 2. QUIZZES E CONTEÚDO
+// -------------------------------------------------------------
+
+model Category {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(100)
+  slug        String   @unique @db.VarChar(100)
+  description String?  @db.Text
+  iconUrl     String?  @map("icon_url") @db.VarChar(500)
+  orderIndex  Int      @default(0) @map("order_index")
+  isActive    Boolean  @default(true) @map("is_active")
+
+  quizzes     Quiz[]
+
+  @@map("categories")
+}
+
+model Quiz {
+  id          String   @id @default(uuid()) @db.Uuid
+  categoryId  String   @map("category_id") @db.Uuid
+  campaignId  String?  @map("campaign_id") @db.Uuid
+  title       String   @db.VarChar(200)
+  description String?  @db.Text
+  difficulty  String   @default("INTERMEDIATE") @db.VarChar(20)
+  timeLimit   Int      @default(30) @map("time_limit") // segundos por questão
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  category    Category @relation(fields: [categoryId], references: [id])
+  campaign    Campaign? @relation(fields: [campaignId], references: [id])
+  questions   Question[]
+  sessions    QuizSession[]
+
+  @@map("quizzes")
+}
+
+model Question {
+  id          String   @id @default(uuid()) @db.Uuid
+  quizId      String   @map("quiz_id") @db.Uuid
+  statement   String   @db.Text
+  explanation String   @db.Text // Pílula pedagógica exibida no feedback
+  mediaUrl    String?  @map("media_url") @db.VarChar(500)
+  mediaType   String?  @map("media_type") @db.VarChar(20) // NONE, IMAGE, AUDIO, VIDEO
+  pointsReward Int     @default(10) @map("points_reward")
+
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  options     Option[]
+  answers     SessionAnswer[]
+
+  @@map("questions")
+}
+
+model Option {
+  id          String   @id @default(uuid()) @db.Uuid
+  questionId  String   @map("question_id") @db.Uuid
+  text        String   @db.Text
+  isCorrect   Boolean  @default(false) @map("is_correct")
+
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("options")
+}
+
+model QuizSession {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  quizId         String    @map("quiz_id") @db.Uuid
+  sessionToken   String    @unique @map("session_token") @db.VarChar(255)
+  totalQuestions Int       @map("total_questions")
+  correctCount   Int       @default(0) @map("correct_count")
+  earnedCoins    Int       @default(0) @map("earned_coins")
+  status         String    @default("IN_PROGRESS") @db.VarChar(20) // IN_PROGRESS, COMPLETED, ABANDONED
+  startedAt      DateTime  @default(now()) @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+
+  user           User      @relation(fields: [userId], references: [id])
+  quiz           Quiz      @relation(fields: [quizId], references: [id])
+  answers        SessionAnswer[]
+
+  @@map("quiz_sessions")
+}
+
+model SessionAnswer {
+  id              String      @id @default(uuid()) @db.Uuid
+  sessionId       String      @map("session_id") @db.Uuid
+  questionId      String      @map("question_id") @db.Uuid
+  selectedOptionId String?    @map("selected_option_id") @db.Uuid
+  isCorrect       Boolean     @map("is_correct")
+  responseTimeMs  Int         @map("response_time_ms")
+  answeredAt      DateTime    @default(now()) @map("answered_at")
+
+  session         QuizSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question        Question    @relation(fields: [questionId], references: [id])
+
+  @@map("session_answers")
+}
+
+// -------------------------------------------------------------
+// 3. LEDGER CONTÁBIL E CARTEIRA (DUPLA ENTRADA)
+// -------------------------------------------------------------
+
+enum CurrencyType {
+  QUIZ_COINS
+  GEMS
+  REWARD_CREDITS
+}
+
+enum AccountType {
+  USER_WALLET
+  SYSTEM_LIABILITY
+  SYSTEM_RESERVE
+}
+
+model Wallet {
+  id        String          @id @default(uuid()) @db.Uuid
+  userId    String          @unique @map("user_id") @db.Uuid
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accounts  LedgerAccount[]
+
+  @@map("wallets")
+}
+
+model LedgerAccount {
+  id             String       @id @default(uuid()) @db.Uuid
+  walletId       String?      @map("wallet_id") @db.Uuid
+  currencyType   CurrencyType @map("currency_type")
+  accountType    AccountType  @map("account_type")
+  cachedBalance  Decimal      @default(0) @map("cached_balance") @db.Decimal(18, 4)
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  wallet         Wallet?      @relation(fields: [walletId], references: [id])
+  debitEntries   LedgerEntry[] @relation("DebitEntries")
+  creditEntries  LedgerEntry[] @relation("CreditEntries")
+
+  @@unique([walletId, currencyType])
+  @@map("ledger_accounts")
+}
+
+model LedgerEntry {
+  id              String        @id @default(uuid()) @db.Uuid
+  debitAccountId  String        @map("debit_account_id") @db.Uuid
+  creditAccountId String        @map("credit_account_id") @db.Uuid
+  amount          Decimal       @db.Decimal(18, 4)
+  currencyType    CurrencyType  @map("currency_type")
+  eventType       String        @map("event_type") @db.VarChar(50) // QUIZ_REWARD, CHECKIN, REDEMPTION
+  referenceId     String?       @map("reference_id") @db.VarChar(255)
+  idempotencyKey  String        @unique @map("idempotency_key") @db.VarChar(255)
+  description     String        @db.VarChar(255)
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  debitAccount    LedgerAccount @relation("DebitEntries", fields: [debitAccountId], references: [id])
+  creditAccount   LedgerAccount @relation("CreditEntries", fields: [creditAccountId], references: [id])
+
+  @@index([createdAt])
+  @@index([eventType])
+  @@map("ledger_entries")
+}
+
+// -------------------------------------------------------------
+// 4. MISSÕES, STREAKS E CONQUISTAS
+// -------------------------------------------------------------
+
+model DailyCheckin {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  checkinDate  DateTime @map("checkin_date") @db.Date
+  streakCount  Int      @default(1) @map("streak_count")
+  coinsAwarded Int      @map("coins_awarded")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, checkinDate])
+  @@map("daily_checkins")
+}
+
+model Badge {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(100)
+  description String   @db.Text
+  iconUrl     String   @map("icon_url") @db.VarChar(500)
+  categoryTag String?  @map("category_tag") @db.VarChar(50)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  userBadges  UserBadge[]
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  badgeId    String   @map("badge_id") @db.Uuid
+  unlockedAt DateTime @default(now()) @map("unlocked_at")
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge      Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@map("user_badges")
+}
+
+// -------------------------------------------------------------
+// 5. PARCEIROS, CAMPANHAS E ORÇAMENTOS
+// -------------------------------------------------------------
+
+model Partner {
+  id          String     @id @default(uuid()) @db.Uuid
+  name        String     @db.VarChar(150)
+  cnpj        String?    @unique @db.VarChar(18)
+  contactEmail String    @map("contact_email") @db.VarChar(255)
+  isActive    Boolean    @default(true) @map("is_active")
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  campaigns   Campaign[]
+
+  @@map("partners")
+}
+
+model Campaign {
+  id          String           @id @default(uuid()) @db.Uuid
+  partnerId   String           @map("partner_id") @db.Uuid
+  title       String           @db.VarChar(200)
+  startDate   DateTime         @map("start_date")
+  endDate     DateTime         @map("end_date")
+  isActive    Boolean          @default(true) @map("is_active")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  partner     Partner          @relation(fields: [partnerId], references: [id])
+  budgets     CampaignBudget[]
+  quizzes     Quiz[]
+
+  @@map("campaigns")
+}
+
+model CampaignBudget {
+  id             String   @id @default(uuid()) @db.Uuid
+  campaignId     String   @map("campaign_id") @db.Uuid
+  totalBudgetBrl Decimal  @map("total_budget_brl") @db.Decimal(12, 2)
+  spentBudgetBrl Decimal  @default(0) @map("spent_budget_brl") @db.Decimal(12, 2)
+  maxRedemptions Int      @map("max_redemptions")
+  usedRedemptions Int     @default(0) @map("used_redemptions")
+
+  campaign       Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("campaign_budgets")
+}
+
+// -------------------------------------------------------------
+// 6. CATÁLOGO DE BENEFÍCIOS E RESGATES
+// -------------------------------------------------------------
+
+model Reward {
+  id               String          @id @default(uuid()) @db.Uuid
+  title            String          @db.VarChar(200)
+  description      String          @db.Text
+  partnerName      String          @map("partner_name") @db.VarChar(150)
+  termsAndConditions String        @map("terms_and_conditions") @db.Text
+  costPoints       Decimal         @map("cost_points") @db.Decimal(12, 2)
+  currencyRequired CurrencyType    @map("currency_required")
+  stockQuantity    Int             @default(0) @map("stock_quantity")
+  isActive         Boolean         @default(true) @map("is_active")
+  createdAt        DateTime        @default(now()) @map("created_at")
+
+  vouchers         RewardVoucher[]
+  redemptions      Redemption[]
+
+  @@map("rewards")
+}
+
+model RewardVoucher {
+  id          String      @id @default(uuid()) @db.Uuid
+  rewardId    String      @map("reward_id") @db.Uuid
+  voucherCode String      @map("voucher_code") @db.VarChar(255)
+  isClaimed   Boolean     @default(false) @map("is_claimed")
+  claimedAt   DateTime?   @map("claimed_at")
+  expiresAt   DateTime    @map("expires_at")
+
+  reward      Reward      @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  redemption  Redemption?
+
+  @@unique([rewardId, voucherCode])
+  @@map("reward_vouchers")
+}
+
+model Redemption {
+  id             String        @id @default(uuid()) @db.Uuid
+  userId         String        @map("user_id") @db.Uuid
+  rewardId       String        @map("reward_id") @db.Uuid
+  voucherId      String?       @unique @map("voucher_id") @db.Uuid
+  costPoints     Decimal       @map("cost_points") @db.Decimal(12, 2)
+  currencyType   CurrencyType  @map("currency_type")
+  status         String        @default("DELIVERED") @db.VarChar(20) // PENDING, DELIVERED, CANCELLED
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  user           User          @relation(fields: [userId], references: [id])
+  reward         Reward        @relation(fields: [rewardId], references: [id])
+  voucher        RewardVoucher? @relation(fields: [voucherId], references: [id])
+
+  @@map("redemptions")
+}
+
+// -------------------------------------------------------------
+// 7. ANTIFRAUDE, AUDITORIA E LGPD
+// -------------------------------------------------------------
+
+model FraudEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  severity    String   @db.VarChar(20) // LOW, MEDIUM, HIGH, CRITICAL
+  eventType   String   @map("event_type") @db.VarChar(100) // SPEED_ANOMALY, EMULATOR_DETECTED, ROOT_DETECTED
+  payloadJson Json     @map("payload_json")
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, eventType])
+  @@map("fraud_events")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  action      String   @db.VarChar(100)
+  targetTable String   @map("target_table") @db.VarChar(50)
+  recordId    String   @map("record_id") @db.VarChar(255)
+  oldValues   Json?    @map("old_values")
+  newValues   Json?    @map("new_values")
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  userAgent   String?  @map("user_agent") @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@index([targetTable, recordId])
+  @@map("audit_logs")
+}
+
+model Consent {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  consentType String   @map("consent_type") @db.VarChar(50) // TERMS_OF_USE, PRIVACY_POLICY, MARKETING
+  version     String   @db.VarChar(20)
+  ipAddress   String   @map("ip_address") @db.VarChar(45)
+  acceptedAt  DateTime @default(now()) @map("accepted_at")
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("consents")
+}
+
