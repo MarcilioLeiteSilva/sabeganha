@@ -27,14 +27,26 @@ export class TransformInterceptor<T>
   ): Observable<Response<T>> {
     const correlationId = uuidv4();
     return next.handle().pipe(
-      map((data) => ({
-        status: 'success',
-        data,
-        meta: {
-          timestamp: new Date().toISOString(),
-          correlationId,
-        },
-      })),
+      map((data) => {
+        // Se a resposta já possui formato direto do mobile adapter, retorne diretamente
+        if (
+          data &&
+          typeof data === 'object' &&
+          ('result' in data ||
+            (typeof data.status === 'number' && 'message' in data))
+        ) {
+          return data;
+        }
+
+        return {
+          status: 'success',
+          data,
+          meta: {
+            timestamp: new Date().toISOString(),
+            correlationId,
+          },
+        };
+      }),
     );
   }
 }

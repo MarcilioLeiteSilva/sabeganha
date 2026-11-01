@@ -6,6 +6,7 @@ import { WalletModule } from './modules/wallet/wallet.module';
 import { QuizModule } from './modules/quiz/quiz.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { RewardsModule } from './modules/rewards/rewards.module';
+import { MobileAdapterModule } from './modules/mobile-adapter/mobile-adapter.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
@@ -20,6 +21,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     QuizModule,
     SessionsModule,
     RewardsModule,
+    MobileAdapterModule,
   ],
   providers: [
     {
