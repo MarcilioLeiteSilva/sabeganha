@@ -1,6 +1,8 @@
 import {
   Controller,
+  All,
   Post,
+  Get,
   Body,
   Req,
   Headers,
@@ -16,50 +18,63 @@ import { MobileAdapterService } from './mobile-adapter.service';
 export class MobileAdapterController {
   constructor(private readonly mobileAdapterService: MobileAdapterService) {}
 
-  @Post(['general_setting', 'get_general_setting'])
+  @All(['general_setting', 'get_general_setting'])
   @ApiOperation({ summary: 'Configurações globais consumidas pelo Splash/Init do app' })
   async getGeneralSettings() {
     return this.mobileAdapterService.getGeneralSettings();
   }
 
-  @Post(['get_onboarding_screen', 'onboarding_screen'])
+  @All(['get_onboarding_screen', 'onboarding_screen'])
   @ApiOperation({ summary: 'Telas de apresentação educativa inicial' })
   async getOnboardingScreen() {
     return this.mobileAdapterService.getOnboardingScreens();
   }
 
-  @Post(['get_category', 'category', 'categories'])
+  @All(['get_category', 'category', 'categories'])
   @ApiOperation({ summary: 'Lista as 9 macro-categorias do SabeGanha' })
   async getCategory() {
     return this.mobileAdapterService.getCategories();
   }
 
-  @Post(['login', 'login_with_social', 'registration'])
+  @All(['login', 'login_with_social', 'registration'])
   @ApiOperation({ summary: 'Login / Cadastro mobile com carteira contábil' })
   async login(@Body() body: any) {
     return this.mobileAdapterService.loginOrRegister(body || {});
   }
 
-  @Post(['profile', 'get_profile'])
+  @All(['profile', 'get_profile'])
   @ApiOperation({ summary: 'Consulta perfil e saldo auditado de Quiz Coins' })
   async profile(@Body() body: any) {
     const userId = body?.user_id || body?.id;
     return this.mobileAdapterService.getProfile(userId);
   }
 
-  @Post(['update_profile'])
+  @All(['update_profile'])
   @ApiOperation({ summary: 'Atualização básica do perfil' })
   async updateProfile(@Body() body: any) {
     return { status: 200, message: 'Perfil atualizado com sucesso', result: [] };
   }
 
-  @Post(['quiz_configuration', 'get_quiz_configuration'])
+  @All(['quiz_configuration', 'get_quiz_configuration'])
   @ApiOperation({ summary: 'Configuração dos modos de jogo do quiz' })
   async quizConfiguration() {
     return this.mobileAdapterService.getQuizConfiguration();
   }
 
-  @Post(['question', 'get_question'])
+  @All([
+    'question',
+    'get_question',
+    'get_practice_question',
+    'get_normal_question',
+    'get_audio_question',
+    'get_video_question',
+    'get_true_false_question',
+    'get_fear_factor_question',
+    'get_daily_quiz_question',
+    'get_exam_question',
+    'get_contest_question',
+    'get_ultimate_challenge_question',
+  ])
   @ApiOperation({ summary: 'Questões do quiz por categoria ou ID' })
   async question(@Body() body: any) {
     const categoryId = body?.category_id || body?.categoryId;
@@ -67,80 +82,92 @@ export class MobileAdapterController {
     return this.mobileAdapterService.getQuestions(categoryId, quizId);
   }
 
-  @Post(['report', 'save_report'])
+  @All([
+    'report',
+    'save_report',
+    'save_practice_report',
+    'save_normal_report',
+    'save_audio_report',
+    'save_video_report',
+    'save_true_false_report',
+    'save_fear_factor_report',
+    'save_daily_quiz_report',
+    'save_exam_report',
+    'save_ultimate_challenge_report',
+  ])
   @ApiOperation({ summary: 'Salva resultado e credita Quiz Coins no Ledger' })
   async report(@Body() body: any) {
     return this.mobileAdapterService.saveReport(body || {});
   }
 
-  @Post(['product', 'get_product'])
+  @All(['product', 'get_product'])
   @ApiOperation({ summary: 'Catálogo de prêmios e vouchers (Modelo A)' })
   async product() {
     return this.mobileAdapterService.getProducts();
   }
 
-  @Post(['reward_transaction_list', 'transaction_list', 'reward_transaction'])
+  @All(['reward_transaction_list', 'transaction_list', 'reward_transaction'])
   @ApiOperation({ summary: 'Extrato do Ledger de Quiz Coins do usuário' })
   async rewardTransactionList(@Body() body: any) {
     const userId = body?.user_id;
     return this.mobileAdapterService.getRewardTransactions(userId);
   }
 
-  @Post(['avatar', 'get_avatar'])
+  @All(['avatar', 'get_avatar'])
   @ApiOperation({ summary: 'Avatares disponíveis' })
   async avatar() {
     return this.mobileAdapterService.getAvatars();
   }
 
-  @Post(['exam', 'get_exam'])
+  @All(['exam', 'get_exam'])
   @ApiOperation({ summary: 'Exames e simulados' })
   async exam() {
     return this.mobileAdapterService.getExam();
   }
 
-  @Post(['live_ultimate_challenge', 'get_live_ultimate_challenge'])
+  @All(['live_ultimate_challenge', 'get_live_ultimate_challenge'])
   @ApiOperation({ summary: 'Desafios especiais' })
   async liveUltimateChallenge() {
     return this.mobileAdapterService.getLiveContest();
   }
 
-  @Post(['live_content', 'get_live_content', 'get_contest', 'contest'])
+  @All(['live_content', 'get_live_content', 'get_contest', 'contest'])
   @ApiOperation({ summary: 'Conteúdos em destaque e concursos' })
   async liveContent() {
     return { status: 200, message: 'success', result: [] };
   }
 
-  @Post(['withdrawal_list', 'get_withdrawal_list'])
+  @All(['withdrawal_list', 'get_withdrawal_list', 'withdrwalrequest'])
   @ApiOperation({ summary: 'Histórico de resgates e saques' })
   async withdrawalList() {
     return { status: 200, message: 'success', result: [] };
   }
 
-  @Post(['get_skill', 'skill'])
+  @All(['get_skill', 'skill'])
   @ApiOperation({ summary: 'Skills do quiz' })
   async getSkill() {
-    return { status: 200, message: 'success', result: [] };
+    return this.mobileAdapterService.getSkills();
   }
 
-  @Post(['get_classification', 'classification'])
+  @All(['get_classification', 'classification'])
   @ApiOperation({ summary: 'Classificações do quiz' })
   async getClassification() {
-    return { status: 200, message: 'success', result: [] };
+    return this.mobileAdapterService.getClassifications();
   }
 
-  @Post(['get_level', 'level'])
+  @All(['get_level', 'level'])
   @ApiOperation({ summary: 'Níveis de quiz' })
   async getLevel() {
-    return { status: 200, message: 'success', result: [] };
+    return this.mobileAdapterService.getLevels();
   }
 
-  @Post(['transaction', 'get_transaction', 'transaction_list'])
+  @All(['transaction', 'get_transaction'])
   @ApiOperation({ summary: 'Transações de pontos' })
   async getTransaction() {
     return { status: 200, message: 'success', result: [] };
   }
 
-  @Post(['get_refer_earn_history', 'refer_earn_history'])
+  @All(['get_refer_earn_history', 'refer_earn_history'])
   @ApiOperation({ summary: 'Histórico de indicações' })
   async getReferEarnHistory() {
     return { status: 200, message: 'success', result: [] };

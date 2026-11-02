@@ -218,13 +218,153 @@ export class MobileAdapterService {
       result: [
         {
           id: 1,
-          category_quiz: 1,
-          daily_quiz: 1,
-          random_quiz: 1,
-          audio_quiz: 0,
-          video_quiz: 0,
-          true_false_quiz: 1,
-          self_challenge: 1,
+          name: 'Prática Livre',
+          icon: 'fa-pencil-alt',
+          description: 'Pratique conhecimentos sem limite de tempo.',
+          quiz_status: 1,
+          category_status: 1,
+          skill_status: 0,
+          classification_status: 0,
+          level_status: 0,
+          quiz_sort_order: '1',
+          total_questions: 10,
+          quiz_duration: 30,
+          joining_type: 1,
+          joining_coin: 0,
+          min_winning_percentage: 30,
+          winning_coin_type: 1,
+          winning_coin: 15,
+          battles_commission: 0,
+          min_user_join: 0,
+          max_user_join: 0,
+          status: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: 2,
+          name: 'Quiz Tradicional',
+          icon: 'fa-brain',
+          description: 'Desafios educativos de múltipla escolha.',
+          quiz_status: 1,
+          category_status: 1,
+          skill_status: 0,
+          classification_status: 0,
+          level_status: 0,
+          quiz_sort_order: '1',
+          total_questions: 10,
+          quiz_duration: 45,
+          joining_type: 1,
+          joining_coin: 0,
+          min_winning_percentage: 50,
+          winning_coin_type: 1,
+          winning_coin: 25,
+          battles_commission: 0,
+          min_user_join: 0,
+          max_user_join: 0,
+          status: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: 5,
+          name: 'Verdadeiro ou Falso',
+          icon: 'fa-check-double',
+          description: 'Teste sua agilidade mental com perguntas diretas.',
+          quiz_status: 1,
+          category_status: 1,
+          skill_status: 0,
+          classification_status: 0,
+          level_status: 0,
+          quiz_sort_order: '1',
+          total_questions: 10,
+          quiz_duration: 30,
+          joining_type: 1,
+          joining_coin: 0,
+          min_winning_percentage: 50,
+          winning_coin_type: 1,
+          winning_coin: 20,
+          battles_commission: 0,
+          min_user_join: 0,
+          max_user_join: 0,
+          status: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: 7,
+          name: 'Auto-Desafio',
+          icon: 'fa-crosshairs',
+          description: 'Personalize perguntas e tempo.',
+          quiz_status: 1,
+          category_status: 1,
+          skill_status: 0,
+          classification_status: 0,
+          level_status: 0,
+          quiz_sort_order: '1',
+          total_questions: 10,
+          quiz_duration: 60,
+          joining_type: 1,
+          joining_coin: 0,
+          min_winning_percentage: 50,
+          winning_coin_type: 1,
+          winning_coin: 30,
+          battles_commission: 0,
+          min_user_join: 0,
+          max_user_join: 0,
+          status: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: 9,
+          name: 'Desafio Diário',
+          icon: 'fa-calendar-day',
+          description: 'Uma rodada diária especial com bônus.',
+          quiz_status: 1,
+          category_status: 0,
+          skill_status: 0,
+          classification_status: 0,
+          level_status: 0,
+          quiz_sort_order: '',
+          total_questions: 10,
+          quiz_duration: 45,
+          joining_type: 1,
+          joining_coin: 0,
+          min_winning_percentage: 50,
+          winning_coin_type: 1,
+          winning_coin: 50,
+          battles_commission: 0,
+          min_user_join: 0,
+          max_user_join: 0,
+          status: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: 12,
+          name: 'Simulados e Exames',
+          icon: 'fa-file-alt',
+          description: 'Testes completos no formato simulado educativo.',
+          quiz_status: 1,
+          category_status: 0,
+          skill_status: 0,
+          classification_status: 0,
+          level_status: 0,
+          quiz_sort_order: '',
+          total_questions: 20,
+          quiz_duration: 120,
+          joining_type: 1,
+          joining_coin: 0,
+          min_winning_percentage: 60,
+          winning_coin_type: 1,
+          winning_coin: 100,
+          battles_commission: 0,
+          min_user_join: 0,
+          max_user_join: 0,
+          status: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         },
       ],
     };
@@ -234,46 +374,59 @@ export class MobileAdapterService {
    * Retorna questões de quiz para a categoria solicitada
    */
   async getQuestions(categoryId?: string, quizId?: string) {
-    let whereClause: any = { isActive: true };
-    if (categoryId) whereClause.categoryId = categoryId;
-    if (quizId) whereClause.id = quizId;
+    let quiz: any = null;
 
-    const quiz = await this.prisma.quiz.findFirst({
-      where: whereClause,
-      include: {
-        questions: {
-          include: {
-            options: true,
-          },
-        },
-      },
-    });
+    if (categoryId && categoryId !== '0') {
+      quiz = await this.prisma.quiz.findFirst({
+        where: { categoryId, isActive: true },
+        include: { questions: { include: { options: true } } },
+      });
+    }
 
-    if (!quiz || quiz.questions.length === 0) {
+    if (!quiz && quizId && quizId !== '0') {
+      quiz = await this.prisma.quiz.findFirst({
+        where: { id: quizId, isActive: true },
+        include: { questions: { include: { options: true } } },
+      });
+    }
+
+    if (!quiz) {
+      quiz = await this.prisma.quiz.findFirst({
+        where: { isActive: true },
+        include: { questions: { include: { options: true } } },
+      });
+    }
+
+    if (!quiz || !quiz.questions || quiz.questions.length === 0) {
       return {
         status: 200,
-        message: 'Nenhuma questão cadastrada para este filtro',
+        message: 'Nenhuma questão cadastrada',
         result: [],
       };
     }
 
-    const formattedQuestions = quiz.questions.map((q, index) => {
-      const opts = q.options;
-      const correctOptIndex = opts.findIndex((o) => o.isCorrect);
+    const formattedQuestions = quiz.questions.map((q: any) => {
+      const opts = q.options || [];
+      const correctOptIndex = opts.findIndex((o: any) => o.isCorrect);
+      const answerLetter = correctOptIndex >= 0 ? ['A', 'B', 'C', 'D'][correctOptIndex] : 'A';
+      const answerIndex = correctOptIndex >= 0 ? correctOptIndex + 1 : 1;
 
       return {
         id: q.id,
         quiz_id: quiz.id,
+        category_id: quiz.categoryId,
         question: q.statement,
         explanation: q.explanation || 'Excelente resposta!',
         option_a: opts[0]?.text || '',
         option_b: opts[1]?.text || '',
         option_c: opts[2]?.text || '',
         option_d: opts[3]?.text || '',
-        answer: correctOptIndex >= 0 ? ['A', 'B', 'C', 'D'][correctOptIndex] : 'A',
-        points: q.pointsReward,
+        answer: answerLetter,
+        correct_answer: answerIndex,
+        points: q.pointsReward || 15,
         timer: quiz.timeLimit || 30,
         note: q.explanation || 'Conhecimento é poder.',
+        status: 1,
       };
     });
 
@@ -295,7 +448,8 @@ export class MobileAdapterService {
     correct_answers?: number | string;
   }) {
     const userId = data.user_id;
-    const pointsToCredit = Number(data.score) || 15;
+    const correctCount = Number(data.correct_answers) || 1;
+    const pointsToCredit = Number(data.score) || (correctCount * 15);
 
     if (userId && pointsToCredit > 0) {
       try {
@@ -324,7 +478,7 @@ export class MobileAdapterService {
         {
           total_coins: currentBalances.quizCoins,
           score: pointsToCredit,
-          correct_answers: data.correct_answers || 1,
+          correct_answers: correctCount,
         },
       ],
     };
@@ -415,6 +569,47 @@ export class MobileAdapterService {
       status: 200,
       message: 'success',
       result: [],
+    };
+  }
+
+  /**
+   * Níveis de dificuldade educativos
+   */
+  async getLevels() {
+    return {
+      status: 200,
+      message: 'success',
+      result: [
+        { id: 1, name: 'Nível Básico', image: '', joining_coin: 0, sort_order: 1, status: 1, total_question: 10 },
+        { id: 2, name: 'Nível Intermediário', image: '', joining_coin: 0, sort_order: 2, status: 1, total_question: 10 },
+        { id: 3, name: 'Nível Avançado', image: '', joining_coin: 0, sort_order: 3, status: 1, total_question: 10 },
+      ],
+    };
+  }
+
+  /**
+   * Habilidades / competências
+   */
+  async getSkills() {
+    return {
+      status: 200,
+      message: 'success',
+      result: [
+        { id: 1, name: 'Geral', image: '', sort_order: 1, status: 1 },
+      ],
+    };
+  }
+
+  /**
+   * Classificações temáticas
+   */
+  async getClassifications() {
+    return {
+      status: 200,
+      message: 'success',
+      result: [
+        { id: 1, name: 'Padrão', image: '', sort_order: 1, status: 1 },
+      ],
     };
   }
 }
