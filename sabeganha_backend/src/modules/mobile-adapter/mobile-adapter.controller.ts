@@ -94,6 +94,7 @@ export class MobileAdapterController {
     'save_daily_quiz_report',
     'save_exam_report',
     'save_ultimate_challenge_report',
+    'save_contest_question_report',
   ])
   @ApiOperation({ summary: 'Salva resultado e credita Quiz Coins no Ledger' })
   async report(@Body() body: any) {
@@ -106,11 +107,93 @@ export class MobileAdapterController {
     return this.mobileAdapterService.getProducts();
   }
 
-  @All(['reward_transaction_list', 'transaction_list', 'reward_transaction'])
+  @All(['reward_transaction_list', 'transaction_list', 'get_reward_transaction'])
   @ApiOperation({ summary: 'Extrato do Ledger de Quiz Coins do usuário' })
   async rewardTransactionList(@Body() body: any) {
     const userId = body?.user_id;
     return this.mobileAdapterService.getRewardTransactions(userId);
+  }
+
+  @All(['reward_transaction', 'add_reward_transaction'])
+  @ApiOperation({ summary: 'Credita recompensa de giro ou bônus no Ledger' })
+  async rewardTransaction(@Body() body: any) {
+    const userId = body?.user_id;
+    const coin = Number(body?.coin) || 0;
+    const type = body?.type;
+    return this.mobileAdapterService.processRewardTransaction(userId, coin, type);
+  }
+
+  @All(['reward_setting'])
+  @ApiOperation({ summary: 'Configurações de recompensas diárias e da roleta' })
+  async rewardSetting() {
+    return this.mobileAdapterService.getRewardSetting();
+  }
+
+  @All(['get_coin_leaderboard', 'coin_leaderboard', 'leaderboard', 'get_leaderboard'])
+  @ApiOperation({ summary: 'Ranking geral de pontuação' })
+  async coinLeaderboard(@Body() body: any) {
+    const userId = body?.user_id;
+    return this.mobileAdapterService.getLeaderboard(userId);
+  }
+
+  @All(['get_contest_leaderboard', 'contest_leaderboard'])
+  @ApiOperation({ summary: 'Ranking de concurso' })
+  async contestLeaderboard(@Body() body: any) {
+    const contestId = body?.contest_id;
+    const userId = body?.user_id;
+    return this.mobileAdapterService.getContestLeaderboard(contestId, userId);
+  }
+
+  @All(['get_package', 'package', 'packages'])
+  @ApiOperation({ summary: 'Pacotes disponíveis' })
+  async packages() {
+    return this.mobileAdapterService.getPackages();
+  }
+
+  @All(['get_badge_list', 'badge_list', 'badges'])
+  @ApiOperation({ summary: 'Lista de insígnias e conquistas' })
+  async badgeList(@Body() body: any) {
+    const userId = body?.user_id;
+    return this.mobileAdapterService.getBadgeList(userId);
+  }
+
+  @All(['get_notification', 'notification', 'notifications'])
+  @ApiOperation({ summary: 'Notificações para o usuário' })
+  async notifications(@Body() body: any) {
+    const userId = body?.user_id;
+    return this.mobileAdapterService.getNotifications(userId);
+  }
+
+  @All(['read_notification'])
+  @ApiOperation({ summary: 'Marca notificação como lida' })
+  async readNotification(@Body() body: any) {
+    const id = body?.id || body?.notification_id;
+    return this.mobileAdapterService.readNotification(id);
+  }
+
+  @All(['get_pages', 'pages'])
+  @ApiOperation({ summary: 'Páginas de políticas, termos e sobre' })
+  async getPages() {
+    return this.mobileAdapterService.getPages();
+  }
+
+  @All(['get_social_link', 'social_link', 'sociallink'])
+  @ApiOperation({ summary: 'Links para redes sociais' })
+  async getSocialLink() {
+    return this.mobileAdapterService.getSocialLink();
+  }
+
+  @All(['get_user_product', 'user_product'])
+  @ApiOperation({ summary: 'Recompensas / vouchers resgatados pelo usuário' })
+  async getUserProduct(@Body() body: any) {
+    const userId = body?.user_id;
+    return this.mobileAdapterService.getUserProducts(userId);
+  }
+
+  @All(['add_product_transaction', 'product_transaction'])
+  @ApiOperation({ summary: 'Resgata produto/voucher debitando Quiz Coins' })
+  async addProductTransaction(@Body() body: any) {
+    return this.mobileAdapterService.addProductTransaction(body || {});
   }
 
   @All(['avatar', 'get_avatar'])
@@ -125,6 +208,13 @@ export class MobileAdapterController {
     return this.mobileAdapterService.getExam();
   }
 
+  @All(['get_user_exam', 'user_exam', 'completed_exam'])
+  @ApiOperation({ summary: 'Histórico de exames do usuário' })
+  async getUserExam(@Body() body: any) {
+    const userId = body?.user_id;
+    return this.mobileAdapterService.getUserExam(userId);
+  }
+
   @All(['live_ultimate_challenge', 'get_live_ultimate_challenge'])
   @ApiOperation({ summary: 'Desafios especiais' })
   async liveUltimateChallenge() {
@@ -137,10 +227,53 @@ export class MobileAdapterController {
     return { status: 200, message: 'success', result: [] };
   }
 
-  @All(['withdrawal_list', 'get_withdrawal_list', 'withdrwalrequest'])
+  @All(['join_contest'])
+  @ApiOperation({ summary: 'Inscrição em concurso' })
+  async joinContest(@Body() body: any) {
+    return this.mobileAdapterService.joinContest(body || {});
+  }
+
+  @All(['get_review_question_by_contest_id', 'review_question'])
+  @ApiOperation({ summary: 'Revisão de questões de concurso' })
+  async getReviewQuestion(@Body() body: any) {
+    const contestId = body?.contest_id;
+    return this.mobileAdapterService.getReviewQuestion(contestId);
+  }
+
+  @All(['withdrawal_list', 'get_withdrawal_list'])
   @ApiOperation({ summary: 'Histórico de resgates e saques' })
   async withdrawalList() {
     return { status: 200, message: 'success', result: [] };
+  }
+
+  @All(['withdrawal_request', 'withdrwalrequest'])
+  @ApiOperation({ summary: 'Solicitação de resgate de benefício' })
+  async withdrawalRequest(@Body() body: any) {
+    return this.mobileAdapterService.withdrawalRequest(body || {});
+  }
+
+  @All(['get_payment_option', 'payment_option'])
+  @ApiOperation({ summary: 'Opções de pagamento/gateways' })
+  async getPaymentOption() {
+    return this.mobileAdapterService.getPaymentOption();
+  }
+
+  @All(['get_payment_token', 'paytm_token', 'paytmToken'])
+  @ApiOperation({ summary: 'Token de pagamento' })
+  async getPaymentToken() {
+    return { status: 200, message: 'success', result: { txnToken: 'mock-token' } };
+  }
+
+  @All(['forgot_password', 'forgotpassword'])
+  @ApiOperation({ summary: 'Recuperação de senha' })
+  async forgotPassword(@Body() body: any) {
+    return this.mobileAdapterService.forgotPassword(body?.email);
+  }
+
+  @All(['add_transaction'])
+  @ApiOperation({ summary: 'Adiciona transação' })
+  async addTransaction(@Body() body: any) {
+    return this.mobileAdapterService.addTransaction(body || {});
   }
 
   @All(['get_skill', 'skill'])
@@ -170,6 +303,6 @@ export class MobileAdapterController {
   @All(['get_refer_earn_history', 'refer_earn_history'])
   @ApiOperation({ summary: 'Histórico de indicações' })
   async getReferEarnHistory() {
-    return { status: 200, message: 'success', result: [] };
+    return this.mobileAdapterService.getReferEarnHistory();
   }
 }
