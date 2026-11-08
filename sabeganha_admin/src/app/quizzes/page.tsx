@@ -16,10 +16,7 @@ import {
   X,
   Search,
   Filter,
-  ArrowRight,
   BrainCircuit,
-  Clock,
-  Award,
 } from 'lucide-react';
 
 const API_BASE =
@@ -60,6 +57,24 @@ interface Category {
   _count?: { quizzes: number };
 }
 
+// Extrai seguramente arrays de payloads REST (suportando { status, data: [...] } do NestJS)
+function extractArray<T = any>(payload: any): T[] {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload.data)) return payload.data;
+  if (Array.isArray(payload.items)) return payload.items;
+  return [];
+}
+
+// Extrai seguramente objetos de payloads REST
+function extractObject<T = any>(payload: any): T | null {
+  if (!payload) return null;
+  if (payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)) {
+    return payload.data as T;
+  }
+  return payload as T;
+}
+
 export default function QuizzesPage() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -70,7 +85,7 @@ export default function QuizzesPage() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Modals state
-  const [activeModal, setActiveModal] = useState<'none' | 'ai_generate' | 'edit_quiz' | 'create_manual'>('none');
+  const [activeModal, setActiveModal] = useState<'none' | 'ai_generate' | 'edit_quiz'>('none');
   const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
   const [savingQuiz, setSavingQuiz] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -100,20 +115,22 @@ export default function QuizzesPage() {
       ]);
 
       if (catRes.ok) {
-        const cats = await catRes.json();
-        setCategories(cats);
-        if (cats.length > 0 && !aiCategoryId) {
-          setAiCategoryId(cats[0].id);
+        const catJson = await catRes.json();
+        const catList = extractArray<Category>(catJson);
+        setCategories(catList);
+        if (catList.length > 0 && !aiCategoryId) {
+          setAiCategoryId(catList[0].id);
         }
       }
 
       if (quizRes.ok) {
-        const qList = await quizRes.json();
+        const quizJson = await quizRes.json();
+        const qList = extractArray<Quiz>(quizJson);
         setQuizzes(qList);
       }
     } catch (err: any) {
       console.error('Erro ao carregar dados:', err);
-      showToast('error', 'Não foi possível carregar dados do servidor. Usando dados locais de contingência.');
+      showToast('error', 'Não foi possível carregar dados do servidor. Usando contingência.');
     } finally {
       setLoading(false);
     }
@@ -134,26 +151,17 @@ export default function QuizzesPage() {
       setSavingQuiz(true);
       const res = await fetch(`${API_BASE}/quizzes/${quiz.id}`);
       if (res.ok) {
-        const fullQuiz = await res.json();
-        setEditingQuiz(fullQuiz);
+        const fullQuizJson = await res.json();
+        const fullQuiz = extractObject<Quiz>(fullQuizJson) || quiz;
+        setEditingQuiz({
+          ...fullQuiz,
+          questions: extractArray<Question>(fullQuiz.questions),
+        });
         setActiveModal('edit_quiz');
       } else {
-        // Fallback com dados existentes
         setEditingQuiz({
           ...quiz,
-          questions: quiz.questions || [
-            {
-              statement: 'Qual o conceito principal abordado neste quiz?',
-              explanation: 'Explicação didática detalhada.',
-              pointsReward: 10,
-              options: [
-                { text: 'Conceito estruturado e fundamentado', isCorrect: true },
-                { text: 'Hipótese não verificada', isCorrect: false },
-                { text: 'Generalização equivocada', isCorrect: false },
-                { text: 'Suposição empírica', isCorrect: false },
-              ],
-            },
-          ],
+          questions: extractArray<Question>(quiz.questions),
         });
         setActiveModal('edit_quiz');
       }
@@ -184,13 +192,13 @@ export default function QuizzesPage() {
           difficulty: editingQuiz.difficulty,
           timeLimit: Number(editingQuiz.timeLimit) || 30,
           isActive: editingQuiz.isActive,
-          questions: editingQuiz.questions?.map((q) => ({
+          questions: (editingQuiz.questions || []).map((q) => ({
             statement: q.statement,
             explanation: q.explanation,
             pointsReward: q.pointsReward,
-            options: q.options.map((opt) => ({
+            options: (q.options || []).map((opt) => ({
               text: opt.text,
-              isCorrect: opt.isCorrect,
+              isCorrect: !!opt.isCorrect,
             })),
           })),
         }),
@@ -202,7 +210,7 @@ export default function QuizzesPage() {
         setEditingQuiz(null);
         await loadData();
       } else {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         showToast('error', err.message || 'Erro ao atualizar quiz.');
       }
     } catch (err: any) {
@@ -226,9 +234,9 @@ export default function QuizzesPage() {
 
       if (res.ok) {
         showToast('success', 'Quiz removido com sucesso!');
-        setQuizzes((prev) => prev.filter((q) => q.id !== quizId));
+        setQuizzes((prev) => extractArray<Quiz>(prev).filter((q) => q.id !== quizId));
       } else {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         showToast('error', err.message || 'Erro ao excluir quiz.');
       }
     } catch (err) {
@@ -258,16 +266,23 @@ export default function QuizzesPage() {
           difficulty: aiDifficulty,
           questionsCount: Number(aiCount) || 5,
           apiKey: aiApiKey.trim() || undefined,
-          autoPublish: false, // Permite que o admin revise e edite antes de publicar!
+          autoPublish: false,
         }),
       });
 
       if (res.ok) {
         const result = await res.json();
-        setAiPreviewData(result.data);
+        const quizData = extractObject(result) || result;
+        setAiPreviewData({
+          title: quizData.title || `Quiz Especial: ${aiTopic}`,
+          description: quizData.description || `Quiz educativo focado em ${aiTopic}.`,
+          difficulty: quizData.difficulty || aiDifficulty,
+          timeLimit: quizData.timeLimit || 30,
+          questions: extractArray<Question>(quizData.questions),
+        });
         showToast('success', 'Perguntas geradas com sucesso pela IA! Revise e publique.');
       } else {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         showToast('error', err.message || 'Falha ao gerar perguntas com IA.');
       }
     } catch (err: any) {
@@ -310,7 +325,7 @@ export default function QuizzesPage() {
         setAiTopic('');
         await loadData();
       } else {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         showToast('error', err.message || 'Erro ao publicar quiz gerado.');
       }
     } catch (err) {
@@ -320,11 +335,16 @@ export default function QuizzesPage() {
     }
   };
 
-  // Filtragem na Tabela
-  const filteredQuizzes = quizzes.filter((q) => {
-    const matchesSearch =
-      q.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (q.category?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+  // Filtragem ultra-segura na Tabela
+  const safeQuizzes = extractArray<Quiz>(quizzes);
+  const safeCategories = extractArray<Category>(categories);
+
+  const filteredQuizzes = safeQuizzes.filter((q) => {
+    if (!q) return false;
+    const qTitle = (q.title || '').toLowerCase();
+    const qCatName = (q.category?.name || '').toLowerCase();
+    const search = searchQuery.toLowerCase();
+    const matchesSearch = qTitle.includes(search) || qCatName.includes(search);
     const matchesCategory = filterCategory === 'ALL' || q.categoryId === filterCategory;
     const matchesDifficulty = filterDifficulty === 'ALL' || q.difficulty === filterDifficulty;
     return matchesSearch && matchesCategory && matchesDifficulty;
@@ -381,14 +401,14 @@ export default function QuizzesPage() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-purple-600" />
-            Macro-Categorias Curadas ({categories.length})
+            Macro-Categorias Curadas ({safeCategories.length})
           </h2>
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700">
             Padrão Regulamentar SabeGanha
           </span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {categories.map((cat) => (
+          {safeCategories.map((cat) => (
             <div
               key={cat.id}
               onClick={() => setFilterCategory(filterCategory === cat.id ? 'ALL' : cat.id)}
@@ -434,7 +454,7 @@ export default function QuizzesPage() {
               className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
             >
               <option value="ALL">Todas as Categorias</option>
-              {categories.map((c) => (
+              {safeCategories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -616,7 +636,7 @@ export default function QuizzesPage() {
                         onChange={(e) => setAiCategoryId(e.target.value)}
                         className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
                       >
-                        {categories.map((c) => (
+                        {safeCategories.map((c) => (
                           <option key={c.id} value={c.id}>
                             {c.name}
                           </option>
@@ -663,7 +683,7 @@ export default function QuizzesPage() {
                       </label>
                       <input
                         type="password"
-                        placeholder="Deixe em branco para usar chave padrão"
+                        placeholder="Deixe em branco para usar chave integrada"
                         value={aiApiKey}
                         onChange={(e) => setAiApiKey(e.target.value)}
                         className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
@@ -770,7 +790,7 @@ export default function QuizzesPage() {
                           <label className="block text-[11px] font-semibold text-slate-600">
                             Alternativas (Selecione a correta):
                           </label>
-                          {q.options.map((opt, optIdx) => (
+                          {(q.options || []).map((opt, optIdx) => (
                             <div
                               key={optIdx}
                               className={`flex items-center gap-2 p-2 rounded-lg border text-xs transition ${
@@ -945,7 +965,7 @@ export default function QuizzesPage() {
                     onChange={(e) => setEditingQuiz({ ...editingQuiz, categoryId: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
                   >
-                    {categories.map((c) => (
+                    {safeCategories.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
                       </option>
@@ -1030,7 +1050,7 @@ export default function QuizzesPage() {
                 </div>
 
                 <div className="space-y-4">
-                  {editingQuiz.questions?.map((q, qIdx) => (
+                  {(editingQuiz.questions || []).map((q, qIdx) => (
                     <div
                       key={qIdx}
                       className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3"
@@ -1041,7 +1061,7 @@ export default function QuizzesPage() {
                         </span>
                         <button
                           onClick={() => {
-                            const newQuestions = editingQuiz.questions!.filter((_, i) => i !== qIdx);
+                            const newQuestions = (editingQuiz.questions || []).filter((_, i) => i !== qIdx);
                             setEditingQuiz({ ...editingQuiz, questions: newQuestions });
                           }}
                           className="text-rose-600 hover:text-rose-800 text-xs font-semibold flex items-center gap-1"
@@ -1059,7 +1079,7 @@ export default function QuizzesPage() {
                           rows={2}
                           value={q.statement}
                           onChange={(e) => {
-                            const newQuestions = [...editingQuiz.questions!];
+                            const newQuestions = [...(editingQuiz.questions || [])];
                             newQuestions[qIdx].statement = e.target.value;
                             setEditingQuiz({ ...editingQuiz, questions: newQuestions });
                           }}
@@ -1070,9 +1090,9 @@ export default function QuizzesPage() {
                       {/* Opções de Resposta */}
                       <div className="space-y-2">
                         <label className="block text-[11px] font-semibold text-slate-600">
-                          Alternativas (Selecione o botão da alternativa correta):
+                          Alternativas (Selecione a correta):
                         </label>
-                        {q.options.map((opt, optIdx) => (
+                        {(q.options || []).map((opt, optIdx) => (
                           <div
                             key={optIdx}
                             className={`flex items-center gap-2 p-2 rounded-lg border text-xs transition ${
@@ -1086,7 +1106,7 @@ export default function QuizzesPage() {
                               name={`edit_correct_${qIdx}`}
                               checked={opt.isCorrect}
                               onChange={() => {
-                                const newQuestions = [...editingQuiz.questions!];
+                                const newQuestions = [...(editingQuiz.questions || [])];
                                 newQuestions[qIdx].options.forEach((o, i) => {
                                   o.isCorrect = i === optIdx;
                                 });
@@ -1098,7 +1118,7 @@ export default function QuizzesPage() {
                               type="text"
                               value={opt.text}
                               onChange={(e) => {
-                                const newQuestions = [...editingQuiz.questions!];
+                                const newQuestions = [...(editingQuiz.questions || [])];
                                 newQuestions[qIdx].options[optIdx].text = e.target.value;
                                 setEditingQuiz({ ...editingQuiz, questions: newQuestions });
                               }}
@@ -1121,7 +1141,7 @@ export default function QuizzesPage() {
                           type="text"
                           value={q.explanation || ''}
                           onChange={(e) => {
-                            const newQuestions = [...editingQuiz.questions!];
+                            const newQuestions = [...(editingQuiz.questions || [])];
                             newQuestions[qIdx].explanation = e.target.value;
                             setEditingQuiz({ ...editingQuiz, questions: newQuestions });
                           }}
