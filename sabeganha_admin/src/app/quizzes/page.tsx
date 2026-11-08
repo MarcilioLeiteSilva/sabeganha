@@ -138,6 +138,10 @@ export default function QuizzesPage() {
 
   useEffect(() => {
     loadData();
+    if (typeof window !== 'undefined') {
+      const savedKey = localStorage.getItem('sabeganha_gemini_api_key');
+      if (savedKey) setAiApiKey(savedKey);
+    }
   }, []);
 
   const showToast = (type: 'success' | 'error', message: string) => {
@@ -280,7 +284,7 @@ export default function QuizzesPage() {
           timeLimit: quizData.timeLimit || 30,
           questions: extractArray<Question>(quizData.questions),
         });
-        showToast('success', 'Perguntas geradas com sucesso pela IA! Revise e publique.');
+        showToast('success', result.message || 'Perguntas geradas com sucesso pela IA! Revise e publique.');
       } else {
         const err = await res.json().catch(() => ({}));
         showToast('error', err.message || 'Falha ao gerar perguntas com IA.');
@@ -678,30 +682,53 @@ export default function QuizzesPage() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Chave Gemini API (Opcional)
-                      </label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          Chave Google Gemini API
+                        </label>
+                        <a
+                          href="https://aistudio.google.com/app/apikey"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] text-purple-600 hover:text-purple-800 underline font-semibold flex items-center gap-1"
+                        >
+                          Obter chave gratuita ↗
+                        </a>
+                      </div>
                       <input
                         type="password"
-                        placeholder="Deixe em branco para usar chave integrada"
+                        placeholder="Cole sua chave AIzaSy... (Salva automaticamente)"
                         value={aiApiKey}
-                        onChange={(e) => setAiApiKey(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setAiApiKey(val);
+                          if (typeof window !== 'undefined') {
+                            localStorage.setItem('sabeganha_gemini_api_key', val.trim());
+                          }
+                        }}
                         className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
                       />
                     </div>
                   </div>
 
-                  <div className="p-4 bg-purple-50 rounded-xl border border-purple-100 flex items-start gap-3">
-                    <Sparkles className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
-                    <div className="text-xs text-purple-800 space-y-1">
-                      <p className="font-semibold">Como funciona a Geração de Quizzes com IA?</p>
-                      <p className="text-purple-700">
-                        O motor do Gemini 1.5 formula questões de múltipla escolha com 4 alternativas, identifica
-                        a resposta correta incontestável e redige a justificativa pedagógica alinhada às diretrizes
-                        curriculares brasileiras. Você poderá revisar cada pergunta antes de salvar.
-                      </p>
+                  {/* Status do Motor de IA */}
+                  {aiApiKey.trim() ? (
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-2.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-xs font-semibold text-emerald-900">
+                        Google Gemini 1.5 Flash Conectado: Perguntas formuladas em tempo real pela IA do Google.
+                      </span>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-2.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0 mt-1" />
+                      <div className="text-xs text-amber-900">
+                        <span className="font-semibold">Modo Motor Curricular Integrado:</span> O sistema usará o banco
+                        pedagógico contextual. Para perguntas inéditas e dinâmicas geradas diretamente pela IA do Google,
+                        cole sua chave gratuita do Google AI Studio acima.
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 // Pré-visualização e Edição das Perguntas Geradas
