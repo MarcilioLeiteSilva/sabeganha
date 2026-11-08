@@ -26,11 +26,15 @@ export class MobileAdapterService {
         { id: 4, key: 'currency_symbol', value: 'QC ' },
         { id: 5, key: 'currency', value: 'Quiz Coins' },
         { id: 6, key: 'refer_status', value: '1' },
-        { id: 7, key: 'redeem_status', value: '1' },
-        { id: 8, key: 'banner_ad', value: '0' },
-        { id: 9, key: 'reward_ad', value: '0' },
-        { id: 10, key: 'interstitial_ad', value: '0' },
-        { id: 11, key: 'onesignal_app_id', value: '' },
+        { id: 7, key: 'refer_and_earn_status', value: '1' },
+        { id: 8, key: 'redeem_status', value: '1' },
+        { id: 9, key: 'withdrawal_coin_status', value: '1' },
+        { id: 10, key: 'min_withdrawal_coin', value: '100' },
+        { id: 11, key: 'min_withdrawal_amount', value: '100' },
+        { id: 12, key: 'banner_ad', value: '0' },
+        { id: 13, key: 'reward_ad', value: '0' },
+        { id: 14, key: 'interstitial_ad', value: '0' },
+        { id: 15, key: 'onesignal_app_id', value: '' },
       ],
     };
   }
@@ -618,19 +622,233 @@ export class MobileAdapterService {
     return {
       status: 200,
       message: 'success',
-      result: [],
+      result: [
+        {
+          id: 1,
+          name: 'Simulado ENEM & Vestibulares',
+          image: '',
+          total_questions: 15,
+          quiz_duration: 300,
+          entry_fee: 0,
+          min_winning_percentage: 50,
+          winning_coin: 60,
+          status: 1,
+          is_played: 0,
+        },
+        {
+          id: 2,
+          name: 'Simulado Concursos: Língua & Legislação',
+          image: '',
+          total_questions: 15,
+          quiz_duration: 300,
+          entry_fee: 0,
+          min_winning_percentage: 50,
+          winning_coin: 60,
+          status: 1,
+          is_played: 0,
+        },
+      ],
     };
   }
 
   /**
-   * Desafio final / live contest (safe fallback)
+   * Desafio final / Auto-Desafio (live ultimate challenge)
    */
   async getLiveContest() {
     return {
       status: 200,
       message: 'success',
-      result: [],
+      result: [
+        {
+          id: 1,
+          name: 'Auto-Desafio: Maratona do Conhecimento',
+          image: '',
+          start_date: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+          end_date: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
+          total_questions: 10,
+          quiz_duration: 60,
+          is_paid: 0,
+          joining_coin: 0,
+          min_winning_percentage: 50,
+          winning_coin: 40,
+          status: 1,
+          is_played: 0,
+        },
+        {
+          id: 2,
+          name: 'Desafio Rápido: Foco Total 60s',
+          image: '',
+          start_date: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+          end_date: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
+          total_questions: 5,
+          quiz_duration: 60,
+          is_paid: 0,
+          joining_coin: 0,
+          min_winning_percentage: 60,
+          winning_coin: 30,
+          status: 1,
+          is_played: 0,
+        },
+      ],
     };
+  }
+
+  /**
+   * Conteúdos e Torneios por aba (1 = Próximos, 2 = Ao Vivo, 3 = Concluídos)
+   */
+  async getContests(type: string = '2', userId?: string) {
+    if (type === '1') {
+      // Upcoming
+      return {
+        status: 200,
+        message: 'success',
+        result: [
+          {
+            id: 101,
+            name: 'Torneio Semanal: Mestres do Saber Brasileiro',
+            image: '',
+            start_date: new Date(Date.now() + 2 * 24 * 3600 * 1000).toISOString(),
+            end_date: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+            total_questions: 15,
+            duration: 300,
+            entry_fee: 0,
+            max_participants: 500,
+            total_participants_user: 78,
+            total_prize_users: 3,
+            total_ranks: 3,
+            total_prize_coins: 5000,
+            prize_json: JSON.stringify([
+              { rank: 1, coin: 2500 },
+              { rank: 2, coin: 1500 },
+              { rank: 3, coin: 1000 },
+            ]),
+            status: 1,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            is_buy: 0,
+            is_played: 0,
+          },
+          {
+            id: 102,
+            name: 'Super Desafio: Ciências, Tecnologia & Inovação',
+            image: '',
+            start_date: new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString(),
+            end_date: new Date(Date.now() + 10 * 24 * 3600 * 1000).toISOString(),
+            total_questions: 20,
+            duration: 400,
+            entry_fee: 20,
+            max_participants: 1000,
+            total_participants_user: 142,
+            total_prize_users: 5,
+            total_ranks: 5,
+            total_prize_coins: 10000,
+            prize_json: JSON.stringify([
+              { rank: 1, coin: 5000 },
+              { rank: 2, coin: 2500 },
+              { rank: 3, coin: 1500 },
+              { rank: 4, coin: 500 },
+              { rank: 5, coin: 500 },
+            ]),
+            status: 1,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            is_buy: 0,
+            is_played: 0,
+          },
+        ],
+      };
+    } else if (type === '3') {
+      // Completed
+      return {
+        status: 200,
+        message: 'success',
+        result: [
+          {
+            id: 301,
+            name: 'Torneio Especial de Lançamento SabeGanha',
+            image: '',
+            start_date: new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString(),
+            end_date: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+            total_questions: 10,
+            duration: 180,
+            entry_fee: 0,
+            max_participants: 500,
+            total_participants_user: 480,
+            total_prize_users: 3,
+            total_ranks: 3,
+            total_prize_coins: 5000,
+            prize_json: JSON.stringify([
+              { rank: 1, coin: 2500 },
+              { rank: 2, coin: 1500 },
+              { rank: 3, coin: 1000 },
+            ]),
+            status: 3,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            is_buy: 1,
+            is_played: 1,
+          },
+        ],
+      };
+    } else {
+      // Live (type '2')
+      return {
+        status: 200,
+        message: 'success',
+        result: [
+          {
+            id: 201,
+            name: 'Desafio Ao Vivo: Atualidades & Conhecimentos Gerais',
+            image: '',
+            start_date: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+            end_date: new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString(),
+            total_questions: 10,
+            duration: 180,
+            entry_fee: 0,
+            max_participants: 500,
+            total_participants_user: 215,
+            total_prize_users: 3,
+            total_ranks: 3,
+            total_prize_coins: 3000,
+            prize_json: JSON.stringify([
+              { rank: 1, coin: 1500 },
+              { rank: 2, coin: 1000 },
+              { rank: 3, coin: 500 },
+            ]),
+            status: 2,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            is_buy: 1,
+            is_played: 0,
+          },
+          {
+            id: 202,
+            name: 'Desafio Ao Vivo: Língua Portuguesa & Interpretação',
+            image: '',
+            start_date: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+            end_date: new Date(Date.now() + 2 * 24 * 3600 * 1000).toISOString(),
+            total_questions: 10,
+            duration: 180,
+            entry_fee: 0,
+            max_participants: 300,
+            total_participants_user: 189,
+            total_prize_users: 3,
+            total_ranks: 3,
+            total_prize_coins: 2500,
+            prize_json: JSON.stringify([
+              { rank: 1, coin: 1200 },
+              { rank: 2, coin: 800 },
+              { rank: 3, coin: 500 },
+            ]),
+            status: 2,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            is_buy: 1,
+            is_played: 0,
+          },
+        ],
+      };
+    }
   }
 
   /**
@@ -1241,11 +1459,77 @@ export class MobileAdapterService {
    * Solicitação de resgate / voucher
    */
   async withdrawalRequest(data: any) {
+    const userId = data?.user_id;
+    const paymentDetail = data?.payment_detail || '';
+    const paymentType = String(data?.payment_type || '1');
+    const coin = Number(data?.coin || 0);
+
+    if (userId && coin > 0) {
+      try {
+        await this.walletService.debit(
+          userId,
+          coin,
+          CurrencyType.QUIZ_COINS,
+          'REDEMPTION',
+          `pix_withdraw_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+          `Solicitação de Resgate (${paymentType === '1' ? 'Pix' : 'Voucher'}: ${paymentDetail})`,
+        );
+      } catch (err: any) {
+        this.logger.warn(`Erro no débito de saque: ${err.message}`);
+        return {
+          status: 400,
+          message: err.message || 'Saldo insuficiente de Quiz Coins.',
+          result: [],
+        };
+      }
+    }
+
     return {
       status: 200,
       message: 'Solicitação registrada com sucesso! Processamento em até 24 horas úteis.',
       result: [],
     };
+  }
+
+  /**
+   * Histórico de solicitações de saque e resgate
+   */
+  async getWithdrawalList(userId?: string) {
+    if (!userId) {
+      return { status: 200, message: 'success', result: [] };
+    }
+
+    try {
+      const statement = await this.walletService.getStatement(userId, 1, 30);
+      const redemptionTxs = statement.transactions.filter(
+        (tx) => tx.eventType === 'REDEMPTION' || (tx.description && tx.description.includes('Resgate')),
+      );
+
+      const formatted = redemptionTxs.map((tx, idx) => {
+        const coinAmount = Math.abs(Math.floor(Number(tx.amount)));
+        const brlAmount = (coinAmount / 100).toFixed(2).replace('.', ',');
+        return {
+          id: idx + 1,
+          user_id: 1,
+          coin: coinAmount,
+          total_amount: `R$ ${brlAmount}`,
+          payment_type: tx.description?.includes('Voucher') ? 'Voucher' : 'Pix',
+          payment_detail: tx.description || 'Chave Pix',
+          status: 0, // 0 = Pendente, 1 = Confirmado
+          created_at: tx.createdAt.toISOString(),
+          updated_at: tx.createdAt.toISOString(),
+        };
+      });
+
+      return {
+        status: 200,
+        message: 'success',
+        result: formatted,
+      };
+    } catch (err: any) {
+      this.logger.warn(`Erro ao buscar histórico de resgates: ${err.message}`);
+      return { status: 200, message: 'success', result: [] };
+    }
   }
 
   /**
@@ -1313,10 +1597,11 @@ export class MobileAdapterService {
    * Revisão de questões de concurso
    */
   async getReviewQuestion(contestId?: string) {
+    const questionsRes = await this.getQuestions();
     return {
       status: 200,
       message: 'success',
-      result: [],
+      result: questionsRes.result || [],
     };
   }
 

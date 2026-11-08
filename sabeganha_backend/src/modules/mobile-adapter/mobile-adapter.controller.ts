@@ -80,7 +80,7 @@ export class MobileAdapterController {
     const categoryId = body?.category_id || body?.categoryId;
     const quizId = body?.quiz_id || body?.quizId;
     const levelId = body?.level_id || body?.levelId;
-    return this.mobileAdapterService.getQuestions(categoryId, quizId, levelId);
+    return this.mobileAdapterService.getQuestions(categoryId, quizId, levelId, body);
   }
 
   @All([
@@ -224,8 +224,10 @@ export class MobileAdapterController {
 
   @All(['live_content', 'get_live_content', 'get_contest', 'contest'])
   @ApiOperation({ summary: 'Conteúdos em destaque e concursos' })
-  async liveContent() {
-    return { status: 200, message: 'success', result: [] };
+  async liveContent(@Body() body: any) {
+    const type = body?.type ? String(body.type) : '2';
+    const userId = body?.user_id;
+    return this.mobileAdapterService.getContests(type, userId);
   }
 
   @All(['join_contest'])
@@ -243,8 +245,9 @@ export class MobileAdapterController {
 
   @All(['withdrawal_list', 'get_withdrawal_list'])
   @ApiOperation({ summary: 'Histórico de resgates e saques' })
-  async withdrawalList() {
-    return { status: 200, message: 'success', result: [] };
+  async withdrawalList(@Body() body: any) {
+    const userId = body?.user_id;
+    return this.mobileAdapterService.getWithdrawalList(userId);
   }
 
   @All(['withdrawal_request', 'withdrwalrequest'])
