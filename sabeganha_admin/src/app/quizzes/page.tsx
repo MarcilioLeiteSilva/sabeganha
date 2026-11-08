@@ -532,7 +532,13 @@ export default function QuizzesPage() {
     const search = searchQuery.toLowerCase();
     const matchesSearch = qTitle.includes(search) || qCatName.includes(search);
     const matchesCategory = filterCategory === 'ALL' || q.categoryId === filterCategory;
-    const matchesDifficulty = filterDifficulty === 'ALL' || q.difficulty === filterDifficulty;
+    const diff = (q.difficulty || '').toUpperCase();
+    const matchesDifficulty =
+      filterDifficulty === 'ALL' ||
+      diff === filterDifficulty ||
+      (filterDifficulty === 'FACIL' && (diff === 'FACIL' || diff === 'EASY')) ||
+      (filterDifficulty === 'MEDIO' && (diff === 'MEDIO' || diff === 'INTERMEDIATE')) ||
+      (filterDifficulty === 'DIFICIL' && (diff === 'DIFICIL' || diff === 'HARD'));
     return matchesSearch && matchesCategory && matchesDifficulty;
   });
 
@@ -699,16 +705,16 @@ export default function QuizzesPage() {
                 </select>
               </div>
               <div className="flex items-center gap-2 text-sm text-slate-500">
-                <span>Dificuldade:</span>
+                <span>Dificuldade / Itens:</span>
                 <select
                   value={filterDifficulty}
                   onChange={(e) => setFilterDifficulty(e.target.value)}
-                  className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                  className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 font-medium"
                 >
-                  <option value="ALL">Todas</option>
-                  <option value="EASY">Fácil</option>
-                  <option value="INTERMEDIATE">Médio</option>
-                  <option value="HARD">Difícil</option>
+                  <option value="ALL">Todas as Dificuldades ({safeQuizzes.length})</option>
+                  <option value="FACIL">🟢 Fácil (5 Perguntas)</option>
+                  <option value="MEDIO">🟡 Médio (10 Perguntas)</option>
+                  <option value="DIFICIL">🔴 Difícil (15 Perguntas)</option>
                 </select>
               </div>
             </div>
@@ -772,15 +778,19 @@ export default function QuizzesPage() {
                           </td>
                           <td className="px-5 py-3.5">
                             <span
-                              className={`text-xs px-2 py-0.5 rounded font-medium ${
-                                q.difficulty === 'EASY'
-                                  ? 'bg-blue-100 text-blue-700'
-                                  : q.difficulty === 'HARD'
-                                  ? 'bg-rose-100 text-rose-700'
-                                  : 'bg-amber-100 text-amber-700'
+                              className={`text-xs px-2.5 py-1 rounded-md font-semibold ${
+                                q.difficulty === 'EASY' || q.difficulty === 'FACIL'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : q.difficulty === 'HARD' || q.difficulty === 'DIFICIL'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-amber-100 text-amber-800'
                               }`}
                             >
-                              {q.difficulty === 'EASY' ? 'Fácil' : q.difficulty === 'HARD' ? 'Difícil' : 'Médio'}
+                              {q.difficulty === 'EASY' || q.difficulty === 'FACIL'
+                                ? '🟢 Fácil'
+                                : q.difficulty === 'HARD' || q.difficulty === 'DIFICIL'
+                                ? '🔴 Difícil'
+                                : '🟡 Médio'}
                             </span>
                           </td>
                           <td className="px-5 py-3.5">

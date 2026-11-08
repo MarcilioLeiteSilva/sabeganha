@@ -220,13 +220,13 @@ export class MobileAdapterService {
           id: 1,
           name: 'Prática Livre',
           icon: 'fa-pencil-alt',
-          description: 'Pratique conhecimentos sem limite de tempo.',
+          description: 'Pratique conhecimentos com escolha de nível.',
           quiz_status: 1,
           category_status: 1,
           skill_status: 0,
           classification_status: 0,
-          level_status: 0,
-          quiz_sort_order: '1',
+          level_status: 1,
+          quiz_sort_order: '1,4',
           total_questions: 10,
           quiz_duration: 30,
           joining_type: 1,
@@ -250,15 +250,15 @@ export class MobileAdapterService {
           category_status: 1,
           skill_status: 0,
           classification_status: 0,
-          level_status: 0,
-          quiz_sort_order: '1',
+          level_status: 1,
+          quiz_sort_order: '1,4',
           total_questions: 10,
-          quiz_duration: 45,
+          quiz_duration: 30,
           joining_type: 1,
           joining_coin: 0,
           min_winning_percentage: 50,
           winning_coin_type: 1,
-          winning_coin: 25,
+          winning_coin: 20,
           battles_commission: 0,
           min_user_join: 0,
           max_user_join: 0,
@@ -371,16 +371,49 @@ export class MobileAdapterService {
   }
 
   /**
-   * Retorna questões de quiz para a categoria solicitada
+   * Retorna questões de quiz para a categoria solicitada e nível de dificuldade
    */
-  async getQuestions(categoryId?: string, quizId?: string) {
+  async getQuestions(categoryId?: string, quizId?: string, levelId?: string | number) {
     let quiz: any = null;
+    let targetDifficulty: string | undefined;
+    let targetCount = 10;
+
+    const lid = String(levelId || '');
+    if (lid === '1' || lid.toLowerCase().includes('facil') || lid.toLowerCase().includes('easy')) {
+      targetDifficulty = 'FACIL';
+      targetCount = 5;
+    } else if (lid === '2' || lid.toLowerCase().includes('medio') || lid.toLowerCase().includes('intermediate')) {
+      targetDifficulty = 'MEDIO';
+      targetCount = 10;
+    } else if (lid === '3' || lid.toLowerCase().includes('dificil') || lid.toLowerCase().includes('hard')) {
+      targetDifficulty = 'DIFICIL';
+      targetCount = 15;
+    }
 
     if (categoryId && categoryId !== '0') {
-      quiz = await this.prisma.quiz.findFirst({
-        where: { categoryId, isActive: true },
-        include: { questions: { include: { options: true } } },
-      });
+      if (targetDifficulty) {
+        quiz = await this.prisma.quiz.findFirst({
+          where: {
+            categoryId,
+            difficulty: {
+              in:
+                targetDifficulty === 'FACIL'
+                  ? ['FACIL', 'EASY']
+                  : targetDifficulty === 'MEDIO'
+                  ? ['MEDIO', 'INTERMEDIATE']
+                  : ['DIFICIL', 'HARD'],
+            },
+            isActive: true,
+          },
+          include: { questions: { include: { options: true } } },
+        });
+      }
+      if (!quiz) {
+        quiz = await this.prisma.quiz.findFirst({
+          where: { categoryId, isActive: true },
+          include: { questions: { include: { options: true } } },
+        });
+      }
     }
 
     if (!quiz && quizId && quizId !== '0') {
@@ -391,10 +424,28 @@ export class MobileAdapterService {
     }
 
     if (!quiz) {
-      quiz = await this.prisma.quiz.findFirst({
-        where: { isActive: true },
-        include: { questions: { include: { options: true } } },
-      });
+      if (targetDifficulty) {
+        quiz = await this.prisma.quiz.findFirst({
+          where: {
+            difficulty: {
+              in:
+                targetDifficulty === 'FACIL'
+                  ? ['FACIL', 'EASY']
+                  : targetDifficulty === 'MEDIO'
+                  ? ['MEDIO', 'INTERMEDIATE']
+                  : ['DIFICIL', 'HARD'],
+            },
+            isActive: true,
+          },
+          include: { questions: { include: { options: true } } },
+        });
+      }
+      if (!quiz) {
+        quiz = await this.prisma.quiz.findFirst({
+          where: { isActive: true },
+          include: { questions: { include: { options: true } } },
+        });
+      }
     }
 
     if (!quiz || !quiz.questions || quiz.questions.length === 0) {
@@ -405,7 +456,9 @@ export class MobileAdapterService {
       };
     }
 
-    const formattedQuestions = quiz.questions.map((q: any) => {
+    const questionsToFormat = quiz.questions.slice(0, targetCount);
+
+    const formattedQuestions = questionsToFormat.map((q: any) => {
       const opts = q.options || [];
       const correctOptIndex = opts.findIndex((o: any) => o.isCorrect);
       const answerLetter = correctOptIndex >= 0 ? ['A', 'B', 'C', 'D'][correctOptIndex] : 'A';
@@ -423,8 +476,8 @@ export class MobileAdapterService {
         option_d: opts[3]?.text || '',
         answer: answerLetter,
         correct_answer: answerIndex,
-        points: q.pointsReward || 15,
-        timer: quiz.timeLimit || 30,
+        points: q.pointsReward || (targetDifficulty === 'FACIL' ? 10 : targetDifficulty === 'DIFICIL' ? 25 : 15),
+        timer: quiz.timeLimit || (targetDifficulty === 'FACIL' ? 30 : targetDifficulty === 'DIFICIL' ? 20 : 25),
         note: q.explanation || 'Conhecimento é poder.',
         status: 1,
       };
@@ -573,16 +626,43 @@ export class MobileAdapterService {
   }
 
   /**
-   * Níveis de dificuldade educativos
+   * Níveis de dificuldade educativos com seleção de questões (5, 10 e 15)
    */
   async getLevels() {
     return {
       status: 200,
       message: 'success',
       result: [
-        { id: 1, name: 'Nível Básico', image: '', joining_coin: 0, sort_order: 1, status: 1, total_question: 10 },
-        { id: 2, name: 'Nível Intermediário', image: '', joining_coin: 0, sort_order: 2, status: 1, total_question: 10 },
-        { id: 3, name: 'Nível Avançado', image: '', joining_coin: 0, sort_order: 3, status: 1, total_question: 10 },
+        {
+          id: 1,
+          name: 'Fácil (5 Perguntas)',
+          image: '',
+          joining_coin: 0,
+          sort_order: 1,
+          status: 1,
+          total_question: 5,
+          is_pass_level: 1,
+        },
+        {
+          id: 2,
+          name: 'Médio (10 Perguntas)',
+          image: '',
+          joining_coin: 0,
+          sort_order: 2,
+          status: 1,
+          total_question: 10,
+          is_pass_level: 1,
+        },
+        {
+          id: 3,
+          name: 'Difícil (15 Perguntas)',
+          image: '',
+          joining_coin: 0,
+          sort_order: 3,
+          status: 1,
+          total_question: 15,
+          is_pass_level: 1,
+        },
       ],
     };
   }

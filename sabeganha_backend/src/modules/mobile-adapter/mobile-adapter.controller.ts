@@ -79,7 +79,8 @@ export class MobileAdapterController {
   async question(@Body() body: any) {
     const categoryId = body?.category_id || body?.categoryId;
     const quizId = body?.quiz_id || body?.quizId;
-    return this.mobileAdapterService.getQuestions(categoryId, quizId);
+    const levelId = body?.level_id || body?.levelId;
+    return this.mobileAdapterService.getQuestions(categoryId, quizId, levelId);
   }
 
   @All([
