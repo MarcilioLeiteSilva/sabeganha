@@ -222,6 +222,7 @@ export class QuizService {
 
   /**
    * OPÇÃO 2: Gerador de Quizzes com Inteligência Artificial (Google Gemini)
+   * À prova de falhas com contingência curricular automática
    */
   async generateQuizWithAI(dto: GenerateQuizAiDto) {
     if (!dto.topic || !dto.topic.trim()) {
@@ -232,6 +233,7 @@ export class QuizService {
     const count = Math.min(Math.max(Number(dto.questionsCount) || 5, 1), 15);
     const difficulty = dto.difficulty || 'INTERMEDIATE';
     const apiKey = (dto.apiKey && dto.apiKey.trim()) || process.env.GEMINI_API_KEY;
+    const points = difficulty === 'HARD' ? 20 : difficulty === 'EASY' ? 10 : 15;
 
     let generatedQuizData: {
       title: string;
@@ -246,7 +248,7 @@ export class QuizService {
 
     let geminiError: string | null = null;
 
-    // 1. Se houver chave Gemini, consome a API do Google Gemini 1.5 Flash
+    // 1. Se houver chave Gemini, tenta consumir a API do Google Gemini 1.5 Flash
     if (apiKey) {
       try {
         const prompt = `Você é um professor e especialista curricular brasileiro para a plataforma educativa SabeGanha (Aprenda. Jogue. Conquiste).
@@ -258,7 +260,7 @@ Para cada pergunta:
 - Crie um enunciado claro, interessante e objetivo.
 - Forneça exatamente 4 alternativas, onde APENAS UMA seja correta (isCorrect: true) e as outras 3 sejam distratores plausíveis (isCorrect: false).
 - Forneça uma explicação detalhada e instrutiva do porquê a alternativa correta é a certa.
-- Pontuação por questão: ${difficulty === 'HARD' ? 20 : difficulty === 'EASY' ? 10 : 15} Quiz Coins.
+- Pontuação por questão: ${points} Quiz Coins.
 
 Responda ESTRITAMENTE em formato JSON com o seguinte schema:
 {
@@ -268,7 +270,7 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
     {
       "statement": "Enunciado da pergunta",
       "explanation": "Explicação pedagógica",
-      "pointsReward": 15,
+      "pointsReward": ${points},
       "options": [
         { "text": "Alternativa correta", "isCorrect": true },
         { "text": "Alternativa incorreta 1", "isCorrect": false },
@@ -287,7 +289,7 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
               temperature: 0.5,
-              maxOutputTokens: 3500,
+              maxOutputTokens: 4000,
               responseMimeType: 'application/json',
             },
           }),
@@ -306,31 +308,24 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
         } else {
           const errData = await response.json().catch(() => null);
           const errDetail = errData?.error?.message || `Status HTTP ${response.status}`;
-          geminiError = `Falha na API Gemini: ${errDetail}`;
+          geminiError = `Aviso Gemini: ${errDetail}`;
           this.logger.warn(geminiError);
-
-          // Se o usuário passou a chave manualmente e deu erro, avisa explicitamente
-          if (dto.apiKey) {
-            throw new BadRequestException(
-              `A chave da API Gemini informada retornou um erro do Google: "${errDetail}". Verifique se a chave em https://aistudio.google.com/app/apikey está correta e ativa.`,
-            );
-          }
         }
       } catch (err: any) {
-        if (err instanceof BadRequestException) throw err;
-        this.logger.error(`Erro ao conectar com Gemini API: ${err.message}`);
-        if (dto.apiKey) {
-          throw new BadRequestException(`Erro de conexão com o Google Gemini: ${err.message}`);
-        }
+        geminiError = `Falha na conexão com Gemini: ${err.message}`;
+        this.logger.warn(geminiError);
       }
     }
 
-    // 2. Motor de Inteligência Curricular Integrado (quando sem chave de API configurada)
+    // 2. Motor de Inteligência Curricular Integrado (se sem chave ou caso a API do Google tenha falhado)
     if (!generatedQuizData || !generatedQuizData.questions || generatedQuizData.questions.length === 0) {
       generatedQuizData = this.buildCurricularFallbackQuiz(topic, difficulty, count);
     }
 
-    // 3. Se autoPublish = true e categoryId informado, cadastra direto no banco
+    // 3. Garante que a quantidade de questões retornada seja EXATAMENTE a requisitada (ex: 10 questões)
+    this.fillToRequestedCount(generatedQuizData, topic, points, count);
+
+    // 4. Se autoPublish = true e categoryId informado, cadastra direto no banco
     if (dto.autoPublish && dto.categoryId) {
       const created = await this.createQuiz({
         categoryId: dto.categoryId,
@@ -350,11 +345,16 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
     }
 
     // Retorna para visualização e edição prévia pelo Admin
+    let responseMessage = 'Quiz gerado pelo Motor Curricular Integrado com sucesso! Revise e publique.';
+    if (apiKey && !geminiError) {
+      responseMessage = 'Quiz gerado via Google Gemini 1.5 Flash com sucesso! Revise e publique.';
+    } else if (geminiError) {
+      responseMessage = `${geminiError}. O quiz foi gerado com sucesso pelo Motor Curricular Integrado para garantir sua operação contínua.`;
+    }
+
     return {
       status: 200,
-      message: apiKey
-        ? 'Quiz gerado via Google Gemini 1.5 Flash com sucesso! Revise e publique.'
-        : 'Quiz gerado pelo Motor Curricular Integrado. Revise os dados ou conecte sua chave Gemini para geração livre via IA.',
+      message: responseMessage,
       data: {
         title: generatedQuizData.title,
         description: generatedQuizData.description,
@@ -363,6 +363,141 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
         questions: generatedQuizData.questions,
       },
     };
+  }
+
+  /**
+   * Garante que o quiz atinja o número de questões solicitado pelo usuário (até 15 questões)
+   */
+  private fillToRequestedCount(
+    quiz: { title: string; description: string; questions: any[] },
+    topic: string,
+    points: number,
+    targetCount: number,
+  ) {
+    if (!quiz.questions) quiz.questions = [];
+
+    const extraQuestions = [
+      {
+        statement: `Ao examinar a base teórica de "${topic}", qual premissa é amplamente reconhecida como indispensável para a sua fundamentação acadêmica?`,
+        explanation: `A fundamentação teórica de ${topic} fornece o arcabouço analítico para que os fenômenos associados sejam compreendidos com rigor e precisão científica.`,
+        correct: `A sistematização lógica de princípios validados pela literatura científica e histórica da área`,
+        distractors: [
+          `A adoção de noções do senso comum sem comprovação sistemática`,
+          `Hipóteses isoladas sem correlação empírica ou factual`,
+          `Generalizações conceituais a partir de anomalias estatísticas`,
+        ],
+      },
+      {
+        statement: `Qual diretriz metodológica representa a abordagem recomendada no estudo ou aplicação prática de "${topic}"?`,
+        explanation: `Na prática contemporânea, lidar com ${topic} demanda método analítico, planejamento criterioso e acompanhamento de métricas objetivas.`,
+        correct: `Planejamento estruturado baseado em evidências concretas e boas práticas consolidadas`,
+        distractors: [
+          `Condução puramente intuitiva sem parâmetros de controle de qualidade`,
+          `Replicação passiva de modelos defasados sem contextualização`,
+          `Descarte de critérios de avaliação em favor de suposições pontuais`,
+        ],
+      },
+      {
+        statement: `Historicamente, qual transição conceitual marcou o amadurecimento e a consolidação de "${topic}"?`,
+        explanation: `A evolução histórica de ${topic} é caracterizada pelo aprimoramento dos instrumentos de análise e pela revisão crítica de paradigmas anteriores.`,
+        correct: `A superação de modelos empíricos rudimentares por formulações sistemáticas com comprovação analítica`,
+        distractors: [
+          `A total cristalização de dogmas sem qualquer renovação ao longo dos séculos`,
+          `O rompimento absoluto com qualquer registro histórico ou documental prévio`,
+          `A subordinação exclusiva a interesses circunstanciais sem base técnica`,
+        ],
+      },
+      {
+        statement: `Para evitar equívocos comuns de interpretação sobre "${topic}", qual diferenciação conceitual deve ser destacada?`,
+        explanation: `Diferenciar os componentes fundamentais de ${topic} de fenômenos correlatos é crucial para uma interpretação rigorosa e sem distorções.`,
+        correct: `Identificar a especificidade própria de ${topic}, distinguindo causas estruturais de efeitos secundários`,
+        distractors: [
+          `Equiparar conceitos heterogêneos como se fossem intercambiáveis sem restrições`,
+          `Considerar que qualquer semelhança superficial implica identidade de processos`,
+          `Ignorar as fronteiras epistemológicas estabelecidas pelos especialistas da área`,
+        ],
+      },
+      {
+        statement: `No cenário atual, qual é a principal contribuição ou impacto atribuído ao desenvolvimento de "${topic}"?`,
+        explanation: `A relevância contemporânea de ${topic} manifesta-se em sua capacidade de gerar impacto tangível, promovendo discernimento crítico e soluções sustentáveis.`,
+        correct: `Promover o avanço do conhecimento, pensamento crítico e soluções relevantes para a sociedade`,
+        distractors: [
+          `Limitar-se a debates teóricos sem qualquer aplicação para os desafios contemporâneos`,
+          `Impedir o diálogo interdisciplinar com áreas correlatas do conhecimento`,
+          `Substituir a análise crítica por julgamentos precipitados`,
+        ],
+      },
+      {
+        statement: `Entre os principais desafios para o avanço dos estudos sobre "${topic}" nos próximos anos, qual fator se destaca como prioritário?`,
+        explanation: `O futuro de ${topic} depende da capacidade de integrar inovações metodológicas mantendo a fidelidade aos princípios éticos e científicos.`,
+        correct: `Integrar novas tecnologias e abordagens analíticas mantendo o rigor ético e científico`,
+        distractors: [
+          `Abandonar completamente os princípios éticos em prol de resultados acelerados`,
+          `Isolar a disciplina em relação aos avanços globais de pesquisa`,
+          `Desconsiderar o impacto humano e ecológico das decisões técnicas`,
+        ],
+      },
+      {
+        statement: `Como "${topic}" se relaciona de maneira interdisciplinar com outros ramos do saber?`,
+        explanation: `A interdisciplinaridade enriquece ${topic}, permitindo que teorias de outras ciências ampliem a capacidade explicativa e resolutiva de questões complexas.`,
+        correct: `Dialogando com áreas afins para construir compreensões abrangentes e multifacetadas`,
+        distractors: [
+          `Recusando qualquer diálogo com outras áreas para preservar pureza conceitual`,
+          `Subordinando todas as ciências à sua exclusiva ótica analítica`,
+          `Eliminando a necessidade de conhecimento especializado`,
+        ],
+      },
+      {
+        statement: `Qual critério é considerado essencial para avaliar a qualidade e a veracidade de proposições relativas a "${topic}"?`,
+        explanation: `A validade de afirmativas sobre ${topic} repousa na replicabilidade, no embasamento factual e na consistência lógica das demonstrações.`,
+        correct: `Consistência lógica interna corroborada por evidências documentais ou experimentais verificáveis`,
+        distractors: [
+          `Popularidade momentânea em meios de comunicação de massa`,
+          `Opiniões isoladas emitidas sem referência a fontes primárias`,
+          `Afirmações retóricas desacompanhadas de sustentação analítica`,
+        ],
+      },
+      {
+        statement: `Sob a ótica da responsabilidade e da ética, qual princípio rege as deliberações técnicas em "${topic}"?`,
+        explanation: `A conduta ética em ${topic} exige compromisso com a verdade, transparência, integridade acadêmica e bem-estar coletivo.`,
+        correct: `Compromisso com a veracidade factual, transparência de métodos e respeito ao interesse público`,
+        distractors: [
+          `Busca de benefícios setoriais em detrimento da integridade das informações`,
+          `Omissão deliberada de dados contrários a hipóteses preliminares`,
+          `Flexibilização de padrões éticos para atender conveniências imediatas`,
+        ],
+      },
+      {
+        statement: `Em síntese, o domínio aprofundado de "${topic}" capacita o estudante prioritariamente para:`,
+        explanation: `A apropriação crítica de ${topic} fornece as ferramentas intelectuais para tomar decisões fundamentadas, discernir fatos de distorções e atuar de forma consciente.`,
+        correct: `Tomar decisões qualificadas, fundamentadas em análise crítica de fatos e teorias comprovadas`,
+        distractors: [
+          `Memorizar termos técnicos sem compreender suas correlações lógicas`,
+          `Aceitar passivamente qualquer narrativa sem questionamento analítico`,
+          `Desconsiderar variáveis práticas no processo de julgamento`,
+        ],
+      },
+    ];
+
+    let extraIdx = 0;
+    while (quiz.questions.length < targetCount && extraIdx < extraQuestions.length) {
+      const q = extraQuestions[extraIdx++];
+      quiz.questions.push({
+        statement: q.statement,
+        explanation: q.explanation,
+        pointsReward: points,
+        options: [
+          { text: q.correct, isCorrect: true },
+          { text: q.distractors[0], isCorrect: false },
+          { text: q.distractors[1], isCorrect: false },
+          { text: q.distractors[2], isCorrect: false },
+        ],
+      });
+    }
+
+    if (quiz.questions.length > targetCount) {
+      quiz.questions = quiz.questions.slice(0, targetCount);
+    }
   }
 
   /**
@@ -433,7 +568,7 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
               { text: 'Estabilidade imediata dos preços e eliminação total da dívida externa', isCorrect: false },
             ],
           },
-        ].slice(0, count),
+        ],
       };
     }
 
@@ -497,7 +632,7 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
               { text: 'A replicação ocorre somente quando há mutações no genoma celular', isCorrect: false },
             ],
           },
-        ].slice(0, count),
+        ],
       };
     }
 
@@ -568,7 +703,7 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
               { text: 'Converter dados tabulares em arquivos de áudio analógicos', isCorrect: false },
             ],
           },
-        ].slice(0, count),
+        ],
       };
     }
 
@@ -628,7 +763,7 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
               { text: 'Linha de crédito rotativo pré-aprovada em instituições financeiras', isCorrect: false },
             ],
           },
-        ].slice(0, count),
+        ],
       };
     }
 
@@ -677,89 +812,14 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
               { text: 'Correntes de ar polar seco vindas da Antártida', isCorrect: false },
             ],
           },
-        ].slice(0, count),
+        ],
       };
-    }
-
-    // Gerador Dinâmico Contextualizado de Alta Qualidade Curricular para qualquer outro tema
-    const dynamicQuestions = [
-      {
-        perspective: 'Fundamentação Conceitual e Definição',
-        statement: `Considerando o estudo e a literatura técnica sobre "${topic}", qual é o conceito definidor que fundamenta essa disciplina?`,
-        explanation: `A correta contextualização de ${topic} exige o domínio dos princípios estruturantes validados pelas referências teóricas e empíricas da área.`,
-        correct: `O conjunto de princípios e teorias sistematicamente validados aplicados a ${topic}`,
-        distractors: [
-          `Adoção de noções do senso comum desprovidas de verificação metódica`,
-          `Pressupostos puramente hipotéticos sem aplicabilidade prática ou registro histórico`,
-          `Generalizações isoladas baseadas em exceções estatísticas da área`,
-        ],
-      },
-      {
-        perspective: 'Metodologia e Aplicação Prática',
-        statement: `No que se refere à aplicação prática e operacional de "${topic}", qual abordagem demonstra maior rigor e eficácia técnica?`,
-        explanation: `A execução profissional e científica de ${topic} requer método consistente, análise de evidências e aderência aos padrões de excelência.`,
-        correct: `Planejamento metódico fundamentado em evidências concretas e boas práticas consolidadas`,
-        distractors: [
-          `Implementação intuitiva sem critérios objetivos de controle ou mensuração`,
-          `Replicação cega de modelos obsoletos sem considerar as variáveis contextuais`,
-          `Descarte de métricas de verificação em favor de estimativas subjetivas`,
-        ],
-      },
-      {
-        perspective: 'Evolução Histórica e Transformação',
-        statement: `Ao analisar a trajetória de desenvolvimento e consolidação de "${topic}", qual fator representou o maior marco transformador?`,
-        explanation: `O avanço de ${topic} ao longo do tempo foi impulsionado pela superação de paradigmas anteriores e pela incorporação de novas tecnologias e reflexões críticas.`,
-        correct: `A transição de modelos empíricos iniciais para abordagens sistematizadas com respaldo científico e tecnológico`,
-        distractors: [
-          `A total estagnação dos conceitos desde sua primeira formulação teórica`,
-          `A desvinculação completa entre teoria analítica e os impactos na sociedade`,
-          `A proibição de revisões críticas por entidades regulatórias globais`,
-        ],
-      },
-      {
-        perspective: 'Análise Crítica e Distinções',
-        statement: `Um dos erros mais comuns ao se analisar "${topic}" consiste em confundir seus princípios com conceitos correlatos. Qual distinção é fundamental?`,
-        explanation: `Na literatura especializada, diferenciar a essência funcional de ${topic} de desdobramentos secundários é essencial para evitar conclusões equivocadas.`,
-        correct: `Compreender que ${topic} possui especificidade própria, diferenciando causas essenciais de efeitos circunstanciais`,
-        distractors: [
-          `Considerar que qualquer fenômeno similar possui as mesmas propriedades e dinâmicas`,
-          `Tratar variáveis independentes como se fossem necessariamente subordinadas ao acaso`,
-          `Ignorar as fronteiras conceituais estabelecidas pela comunidade técnica`,
-        ],
-      },
-      {
-        perspective: 'Impacto Contemporâneo e Tendências Futuras',
-        statement: `Diante do cenário contemporâneo, qual é a principal relevância e perspectiva futura relacionada a "${topic}"?`,
-        explanation: `A relevância contemporânea de ${topic} se manifesta em sua capacidade de gerar impacto social, econômico e cultural mensurável nas demandas atuais.`,
-        correct: `Contribuir decisivamente para soluções sustentáveis, desenvolvimento crítico e inovação na sociedade`,
-        distractors: [
-          `Tornar-se um conhecimento obsoleto sem relevância para os desafios do presente`,
-          `Restringir sua atuação a ambientes laboratoriais sem qualquer contato com a realidade prática`,
-          `Substituir a necessidade de raciocínio crítico por automações cegas`,
-        ],
-      },
-    ];
-
-    const questions = [];
-    for (let i = 0; i < Math.min(count, dynamicQuestions.length); i++) {
-      const q = dynamicQuestions[i];
-      questions.push({
-        statement: q.statement,
-        explanation: q.explanation,
-        pointsReward: points,
-        options: [
-          { text: q.correct, isCorrect: true },
-          { text: q.distractors[0], isCorrect: false },
-          { text: q.distractors[1], isCorrect: false },
-          { text: q.distractors[2], isCorrect: false },
-        ],
-      });
     }
 
     return {
       title: `Quiz Especial: ${topic}`,
       description: `Avaliação de mérito intelectual e raciocínio crítico focada em ${topic}.`,
-      questions,
+      questions: [],
     };
   }
 }

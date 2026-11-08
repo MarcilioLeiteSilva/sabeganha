@@ -287,7 +287,13 @@ export default function QuizzesPage() {
         showToast('success', result.message || 'Perguntas geradas com sucesso pela IA! Revise e publique.');
       } else {
         const err = await res.json().catch(() => ({}));
-        showToast('error', err.message || 'Falha ao gerar perguntas com IA.');
+        const msg =
+          err.error?.message ||
+          err.message ||
+          (Array.isArray(err.message) ? err.message.join(', ') : null) ||
+          (typeof err.error === 'string' ? err.error : null) ||
+          `Erro HTTP ${res.status}: Falha ao gerar perguntas com IA.`;
+        showToast('error', msg);
       }
     } catch (err: any) {
       showToast('error', 'Erro de comunicação com o servidor de IA.');
@@ -686,14 +692,30 @@ export default function QuizzesPage() {
                         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                           Chave Google Gemini API
                         </label>
-                        <a
-                          href="https://aistudio.google.com/app/apikey"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[11px] text-purple-600 hover:text-purple-800 underline font-semibold flex items-center gap-1"
-                        >
-                          Obter chave gratuita ↗
-                        </a>
+                        <div className="flex items-center gap-2">
+                          {aiApiKey.trim() && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAiApiKey('');
+                                if (typeof window !== 'undefined') {
+                                  localStorage.removeItem('sabeganha_gemini_api_key');
+                                }
+                              }}
+                              className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold"
+                            >
+                              Limpar chave
+                            </button>
+                          )}
+                          <a
+                            href="https://aistudio.google.com/app/apikey"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[11px] text-purple-600 hover:text-purple-800 underline font-semibold flex items-center gap-1"
+                          >
+                            Obter chave gratuita ↗
+                          </a>
+                        </div>
                       </div>
                       <input
                         type="password"
