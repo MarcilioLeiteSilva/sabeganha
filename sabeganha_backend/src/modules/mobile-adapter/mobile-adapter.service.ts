@@ -460,7 +460,15 @@ export class MobileAdapterService {
 
     const formattedQuestions = questionsToFormat.map((q: any) => {
       const opts = q.options || [];
-      const correctOptIndex = opts.findIndex((o: any) => o.isCorrect);
+
+      // Embaralhamento uniforme (Fisher-Yates) para distribuir a resposta correta aleatoriamente entre A, B, C e D
+      const shuffledOpts = [...opts];
+      for (let i = shuffledOpts.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledOpts[i], shuffledOpts[j]] = [shuffledOpts[j], shuffledOpts[i]];
+      }
+
+      const correctOptIndex = shuffledOpts.findIndex((o: any) => o.isCorrect);
       const answerLetter = correctOptIndex >= 0 ? ['A', 'B', 'C', 'D'][correctOptIndex] : 'A';
       const answerIndex = correctOptIndex >= 0 ? correctOptIndex + 1 : 1;
 
@@ -470,10 +478,10 @@ export class MobileAdapterService {
         category_id: quiz.categoryId,
         question: q.statement,
         explanation: q.explanation || 'Excelente resposta!',
-        option_a: opts[0]?.text || '',
-        option_b: opts[1]?.text || '',
-        option_c: opts[2]?.text || '',
-        option_d: opts[3]?.text || '',
+        option_a: shuffledOpts[0]?.text || '',
+        option_b: shuffledOpts[1]?.text || '',
+        option_c: shuffledOpts[2]?.text || '',
+        option_d: shuffledOpts[3]?.text || '',
         answer: answerLetter,
         correct_answer: answerIndex,
         points: q.pointsReward || (targetDifficulty === 'FACIL' ? 10 : targetDifficulty === 'DIFICIL' ? 25 : 15),
