@@ -501,7 +501,14 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
       };
     }
 
-    if (lowerTopic.includes('inteligência artificial') || lowerTopic.includes('inteligencia artificial') || lowerTopic.includes('machine learning') || lowerTopic.includes('ia')) {
+    if (
+      lowerTopic.includes('inteligência artificial') ||
+      lowerTopic.includes('inteligencia artificial') ||
+      lowerTopic.includes('machine learning') ||
+      lowerTopic.includes('deep learning') ||
+      lowerTopic.includes('redes neurais') ||
+      /\bia\b/i.test(topic)
+    ) {
       return {
         title: `Tecnologia: Inteligência Artificial e Ciência de Dados`,
         description: `Fundamentos de aprendizado de máquina, redes neurais e aplicações modernas de inteligência artificial.`,
@@ -559,6 +566,115 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
               { text: 'Excluir completamente a memória do modelo para reiniciar o treinamento do zero', isCorrect: false },
               { text: 'Compactar o código-fonte em linguagem assembly para reduzir o consumo elétrico', isCorrect: false },
               { text: 'Converter dados tabulares em arquivos de áudio analógicos', isCorrect: false },
+            ],
+          },
+        ].slice(0, count),
+      };
+    }
+
+    if (
+      lowerTopic.includes('economia') ||
+      lowerTopic.includes('inflação') ||
+      lowerTopic.includes('inflacao') ||
+      lowerTopic.includes('financeira') ||
+      lowerTopic.includes('juros') ||
+      lowerTopic.includes('selic')
+    ) {
+      return {
+        title: `Economia e Educação Financeira: Fundamentos e Cenário Brasileiro`,
+        description: `Avaliação sobre inflação, política monetária, taxa Selic e finanças sustentáveis.`,
+        questions: [
+          {
+            statement: 'Qual é o principal índice oficial utilizado pelo Banco Central do Brasil para medir a inflação da economia e orientar as metas inflacionárias?',
+            explanation: 'O IPCA (Índice Nacional de Preços ao Consumidor Amplo), calculado pelo IBGE, é o índice oficial do sistema de metas para a inflação brasileiro.',
+            pointsReward: points,
+            options: [
+              { text: 'IPCA (Índice Nacional de Preços ao Consumidor Amplo)', isCorrect: true },
+              { text: 'IGP-M (Índice Geral de Preços do Mercado)', isCorrect: false },
+              { text: 'INPC (Índice Nacional de Preços ao Consumidor)', isCorrect: false },
+              { text: 'IPC-Fipe (Índice de Preços ao Consumidor de São Paulo)', isCorrect: false },
+            ],
+          },
+          {
+            statement: 'Quando o Comitê de Política Monetária (COPOM) eleva a taxa básica de juros (Selic), qual é o efeito primário esperado na economia?',
+            explanation: 'A alta dos juros encarece o crédito, desestimula o consumo e o endividamento, reduzindo as pressões de demanda agregada sobre a inflação.',
+            pointsReward: points,
+            options: [
+              { text: 'Encarecer o crédito e desacelerar a demanda de consumo para conter a inflação', isCorrect: true },
+              { text: 'Estimular imediatamente os empréstimos bancários e multiplicar a oferta de moeda', isCorrect: false },
+              { text: 'Zerar as taxas cobradas nas transações do sistema PIX', isCorrect: false },
+              { text: 'Aumentar automaticamente o endividamento das famílias de baixa renda', isCorrect: false },
+            ],
+          },
+          {
+            statement: 'Na matemática financeira e nos investimentos de longo prazo, qual conceito explica o crescimento exponencial do patrimônio ao longo do tempo?',
+            explanation: 'Os juros compostos calculam o rendimento sobre o capital inicial acumulado aos juros de períodos anteriores ("juros sobre juros"), gerando curva exponencial.',
+            pointsReward: points,
+            options: [
+              { text: 'Juros compostos e o efeito dos juros sobre o saldo acumulado', isCorrect: true },
+              { text: 'Juros simples com taxa linear sem reinvestimento de proventos', isCorrect: false },
+              { text: 'Flutuação cambial direta sem correção inflacionária', isCorrect: false },
+              { text: 'Depreciação contábil uniforme de ativos intangíveis', isCorrect: false },
+            ],
+          },
+          {
+            statement: 'O que caracteriza o princípio da "Reserva de Emergência" no planejamento financeiro pessoal sustentável?',
+            explanation: 'A reserva de emergência deve ser alocada em ativos de altíssima liquidez (resgate imediato) e baixíssimo risco, cobrindo de 3 a 6 meses do custo de vida.',
+            pointsReward: points,
+            options: [
+              { text: 'Montante equivalente a meses de custo de vida alocado em ativos com liquidez diária e baixo risco', isCorrect: true },
+              { text: 'Investimento integral em ações voláteis e criptoativos de alto risco sem possibilidade de resgate', isCorrect: false },
+              { text: 'Capital destinado exclusivamente à aquisição parcelada de bens de consumo supérfluos', isCorrect: false },
+              { text: 'Linha de crédito rotativo pré-aprovada em instituições financeiras', isCorrect: false },
+            ],
+          },
+        ].slice(0, count),
+      };
+    }
+
+    if (
+      lowerTopic.includes('geografia') ||
+      lowerTopic.includes('bioma') ||
+      lowerTopic.includes('amazônia') ||
+      lowerTopic.includes('amazonia') ||
+      lowerTopic.includes('cerrado') ||
+      lowerTopic.includes('clima')
+    ) {
+      return {
+        title: `Geografia do Brasil: Biomas, Clima e Meio Ambiente`,
+        description: `Aspectos físicos, bacias hidrográficas e biodiversidade dos grandes biomas brasileiros.`,
+        questions: [
+          {
+            statement: 'Considerado a "caixa d’água do Brasil" por abrigar as nascentes das principais bacias hidrográficas do país, qual bioma ocupa a porção central do território?',
+            explanation: 'O Cerrado é o segundo maior bioma do Brasil e abriga as nascentes de importantes bacias hidrográficas (São Francisco, Tocantins-Araguaia e Paraná/Paraguai).',
+            pointsReward: points,
+            options: [
+              { text: 'Cerrado', isCorrect: true },
+              { text: 'Caatinga', isCorrect: false },
+              { text: 'Pantanal', isCorrect: false },
+              { text: 'Pampa', isCorrect: false },
+            ],
+          },
+          {
+            statement: 'Qual é o bioma exclusivamente brasileiro, caracterizado por clima semiárido e vegetação xerófila adaptada a períodos prolongados de estiagem?',
+            explanation: 'A Caatinga é o único bioma cujo território é 100% contido nas fronteiras brasileiras, destacando-se pela vegetação adaptada à escassez hídrica.',
+            pointsReward: points,
+            options: [
+              { text: 'Caatinga', isCorrect: true },
+              { text: 'Mata Atlântica', isCorrect: false },
+              { text: 'Floresta Amazônica', isCorrect: false },
+              { text: 'Cerrado', isCorrect: false },
+            ],
+          },
+          {
+            statement: 'O fenômeno atmosférico conhecido como "Rios Voadores" na América do Sul é gerado principalmente por qual processo biogeográfico?',
+            explanation: 'Os rios voadores são fluxos aéreos massivos de vapor de água produzidos pela evapotranspiração da Floresta Amazônica, que irrigam o Centro-Sul do país.',
+            pointsReward: points,
+            options: [
+              { text: 'Intensa evapotranspiração da Floresta Amazônica transportada pelos ventos alísios', isCorrect: true },
+              { text: 'Derretimento abrupto das geleiras dos Andes durante o inverno', isCorrect: false },
+              { text: 'Evaporação superficial dos reservatórios artificiais do Sudeste', isCorrect: false },
+              { text: 'Correntes de ar polar seco vindas da Antártida', isCorrect: false },
             ],
           },
         ].slice(0, count),
