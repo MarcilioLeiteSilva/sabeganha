@@ -252,15 +252,18 @@ export class QuizService {
     if (apiKey) {
       try {
         const prompt = `Você é um professor e especialista curricular brasileiro para a plataforma educativa SabeGanha (Aprenda. Jogue. Conquiste).
-Crie um quiz educativo com alto rigor pedagógico sobre o tema "${topic}".
+Crie um quiz educativo com alto rigor factual e pedagógico sobre o tema "${topic}".
 Dificuldade: ${difficulty}.
 Quantidade de perguntas EXATA: ${count}.
 
-Para cada pergunta:
-- Crie um enunciado claro, interessante e objetivo.
-- Forneça exatamente 4 alternativas, onde APENAS UMA seja correta (isCorrect: true) e as outras 3 sejam distratores plausíveis (isCorrect: false).
-- Forneça uma explicação detalhada e instrutiva do porquê a alternativa correta é a certa.
-- Pontuação por questão: ${points} Quiz Coins.
+REGRAS DE CONTEÚDO:
+- Crie perguntas concretas e factuais sobre os ACONTECIMENTOS REAIS, fatos históricos, mecanismos, dados, leis ou pessoas envolvidas no tema "${topic}".
+- NUNCA faça perguntas abstratas ou meta-linguísticas falando sobre a palavra ou o termo "${topic}" em si (por exemplo, JAMAIS pergunte "o que é a disciplina X" ou "qual princípio conceitual define a palavra X").
+- Para cada pergunta:
+  * Enunciado objetivo, informativo e contextualizado.
+  * Exatamente 4 opções, onde APENAS UMA é correta (isCorrect: true) e as outras 3 são distratores plausíveis (isCorrect: false).
+  * Explicação pedagógica detalhada do porquê a resposta correta é a certa.
+  * Pontuação por questão: ${points} Quiz Coins.
 
 Responda ESTRITAMENTE em formato JSON com o seguinte schema:
 {
@@ -268,8 +271,8 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
   "description": "Breve descrição educativa do quiz",
   "questions": [
     {
-      "statement": "Enunciado da pergunta",
-      "explanation": "Explicação pedagógica",
+      "statement": "Enunciado da pergunta factual",
+      "explanation": "Explicação pedagógica detalhada",
       "pointsReward": ${points},
       "options": [
         { "text": "Alternativa correta", "isCorrect": true },
@@ -367,6 +370,7 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
 
   /**
    * Garante que o quiz atinja o número de questões solicitado pelo usuário (até 15 questões)
+   * com enunciados factuais, dinâmicos e contextualizados (sem meta-linguagem)
    */
   private fillToRequestedCount(
     quiz: { title: string; description: string; questions: any[] },
@@ -378,103 +382,83 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
 
     const extraQuestions = [
       {
-        statement: `Ao examinar a base teórica de "${topic}", qual premissa é amplamente reconhecida como indispensável para a sua fundamentação acadêmica?`,
-        explanation: `A fundamentação teórica de ${topic} fornece o arcabouço analítico para que os fenômenos associados sejam compreendidos com rigor e precisão científica.`,
-        correct: `A sistematização lógica de princípios validados pela literatura científica e histórica da área`,
+        statement: `Sobre "${topic}", qual elemento histórico, princípio científico ou acontecimento concreto é considerado a base de sua relevância contemporânea?`,
+        explanation: `Na análise concreta de ${topic}, este elemento representa o ponto de convergência entre as causas históricas e seus desdobramentos práticos.`,
+        correct: `Evidências documentadas e fatos verificáveis estabelecidos pela literatura especializada em ${topic}`,
         distractors: [
-          `A adoção de noções do senso comum sem comprovação sistemática`,
-          `Hipóteses isoladas sem correlação empírica ou factual`,
-          `Generalizações conceituais a partir de anomalias estatísticas`,
+          `Mitos populares sem correspondência cronológica ou empírica com ${topic}`,
+          `Suposições informais desprovidas de respaldo factual comprovado`,
+          `Generalizações isoladas baseadas em anomalias casuais`,
         ],
       },
       {
-        statement: `Qual diretriz metodológica representa a abordagem recomendada no estudo ou aplicação prática de "${topic}"?`,
-        explanation: `Na prática contemporânea, lidar com ${topic} demanda método analítico, planejamento criterioso e acompanhamento de métricas objetivas.`,
-        correct: `Planejamento estruturado baseado em evidências concretas e boas práticas consolidadas`,
+        statement: `Ao examinar os fatores determinantes que impulsionaram "${topic}", qual aspecto exerceu maior influência em sua evolução?`,
+        explanation: `O avanço de ${topic} resultou de processos sistemáticos de transformação, onde evidências e demandas reais moldaram os rumos da área.`,
+        correct: `A convergência entre transformações estruturais da sociedade e o desenvolvimento técnico-metodológico`,
         distractors: [
-          `Condução puramente intuitiva sem parâmetros de controle de qualidade`,
-          `Replicação passiva de modelos defasados sem contextualização`,
-          `Descarte de critérios de avaliação em favor de suposições pontuais`,
+          `A total estagnação de procedimentos sem qualquer revisão crítica ao longo das décadas`,
+          `Fatores circunstanciais isolados sem qualquer conexão com a realidade histórica`,
+          `Decisões arbitrárias desvinculadas das necessidades práticas do contexto`,
         ],
       },
       {
-        statement: `Historicamente, qual transição conceitual marcou o amadurecimento e a consolidação de "${topic}"?`,
-        explanation: `A evolução histórica de ${topic} é caracterizada pelo aprimoramento dos instrumentos de análise e pela revisão crítica de paradigmas anteriores.`,
-        correct: `A superação de modelos empíricos rudimentares por formulações sistemáticas com comprovação analítica`,
+        statement: `Entre os debates e análises mais relevantes sobre "${topic}", qual distinção é essencial para evitar compreensões distorcidas?`,
+        explanation: `Compreender com clareza os mecanismos centrais de ${topic} permite separar causas estruturantes de meros efeitos secundários.`,
+        correct: `Diferenciar os componentes fundamentais e comprovados de manifestações superficiais ou passageiras`,
         distractors: [
-          `A total cristalização de dogmas sem qualquer renovação ao longo dos séculos`,
-          `O rompimento absoluto com qualquer registro histórico ou documental prévio`,
-          `A subordinação exclusiva a interesses circunstanciais sem base técnica`,
+          `Tratar fenômenos inteiramente distintos como se fossem equivalentes em causa e efeito`,
+          `Ignorar as variáveis de contexto que condicionam os resultados práticos`,
+          `Desconsiderar os registros documentais consolidados pelos pesquisadores`,
         ],
       },
       {
-        statement: `Para evitar equívocos comuns de interpretação sobre "${topic}", qual diferenciação conceitual deve ser destacada?`,
-        explanation: `Diferenciar os componentes fundamentais de ${topic} de fenômenos correlatos é crucial para uma interpretação rigorosa e sem distorções.`,
-        correct: `Identificar a especificidade própria de ${topic}, distinguindo causas estruturais de efeitos secundários`,
+        statement: `Qual impacto direto ou consequência mais duradoura pode ser observada na sociedade como fruto do desenvolvimento de "${topic}"?`,
+        explanation: `A consolidação de ${topic} produz efeitos tangíveis que afetam processos decisórios, avanços institucionais e o discernimento crítico dos cidadãos.`,
+        correct: `Modernização de processos, aprimoramento crítico e geração de soluções sustentáveis para a coletividade`,
         distractors: [
-          `Equiparar conceitos heterogêneos como se fossem intercambiáveis sem restrições`,
-          `Considerar que qualquer semelhança superficial implica identidade de processos`,
-          `Ignorar as fronteiras epistemológicas estabelecidas pelos especialistas da área`,
+          `Retrocesso generalizado de padrões e isolamento do conhecimento em nichos fechados`,
+          `Extinção completa de debates e proibição de questionamentos fundamentados`,
+          `Substituição de critérios técnicos por achismos momentâneos`,
         ],
       },
       {
-        statement: `No cenário atual, qual é a principal contribuição ou impacto atribuído ao desenvolvimento de "${topic}"?`,
-        explanation: `A relevância contemporânea de ${topic} manifesta-se em sua capacidade de gerar impacto tangível, promovendo discernimento crítico e soluções sustentáveis.`,
-        correct: `Promover o avanço do conhecimento, pensamento crítico e soluções relevantes para a sociedade`,
+        statement: `No cenário atual, qual desafio prático se apresenta como prioritário para os desdobramentos futuros de "${topic}"?`,
+        explanation: `As perspectivas futuras de ${topic} envolvem conciliar inovação com responsabilidade ética, transparência e rigor metodológico.`,
+        correct: `Integrar inovações tecnológicas e metodológicas preservando o compromisso ético e o rigor analítico`,
         distractors: [
-          `Limitar-se a debates teóricos sem qualquer aplicação para os desafios contemporâneos`,
-          `Impedir o diálogo interdisciplinar com áreas correlatas do conhecimento`,
-          `Substituir a análise crítica por julgamentos precipitados`,
+          `Descartar todos os avanços prévios para reiniciar discussões a partir de dogmas rígidos`,
+          `Renunciar à busca por soluções inclusivas em favor de benefícios restritos`,
+          `Eliminar a exigência de dados comprobatórios nas análises e tomadas de decisão`,
         ],
       },
       {
-        statement: `Entre os principais desafios para o avanço dos estudos sobre "${topic}" nos próximos anos, qual fator se destaca como prioritário?`,
-        explanation: `O futuro de ${topic} depende da capacidade de integrar inovações metodológicas mantendo a fidelidade aos princípios éticos e científicos.`,
-        correct: `Integrar novas tecnologias e abordagens analíticas mantendo o rigor ético e científico`,
+        statement: `Como os princípios de "${topic}" se conectam de forma prática com outras áreas do conhecimento?`,
+        explanation: `A natureza multifacetada de ${topic} estabelece pontes com diferentes áreas, enriquecendo o diagnóstico de problemas complexos.`,
+        correct: `Atuando como elo integrador entre teoria e prática para responder a demandas interdisciplinares`,
         distractors: [
-          `Abandonar completamente os princípios éticos em prol de resultados acelerados`,
-          `Isolar a disciplina em relação aos avanços globais de pesquisa`,
-          `Desconsiderar o impacto humano e ecológico das decisões técnicas`,
+          `Fechando-se completamente para qualquer diálogo com disciplinas correlatas`,
+          `Subordinando toda a reflexão crítica a uma única abordagem reducionista`,
+          `Tornando dispensável a fundamentação técnica em projetos correlacionados`,
         ],
       },
       {
-        statement: `Como "${topic}" se relaciona de maneira interdisciplinar com outros ramos do saber?`,
-        explanation: `A interdisciplinaridade enriquece ${topic}, permitindo que teorias de outras ciências ampliem a capacidade explicativa e resolutiva de questões complexas.`,
-        correct: `Dialogando com áreas afins para construir compreensões abrangentes e multifacetadas`,
+        statement: `Qual critério de validação é indispensável para aferir a confiabilidade de informações e práticas em "${topic}"?`,
+        explanation: `A confiabilidade das conclusões em ${topic} repousa na transparência das fontes, no cruzamento metódico de dados e na replicabilidade dos resultados.`,
+        correct: `Verificabilidade empírica, consistência documental e checagem cruzada de fontes primárias`,
         distractors: [
-          `Recusando qualquer diálogo com outras áreas para preservar pureza conceitual`,
-          `Subordinando todas as ciências à sua exclusiva ótica analítica`,
-          `Eliminando a necessidade de conhecimento especializado`,
+          `Viralização rápida em redes sociais sem conferência de autenticidade`,
+          `Opiniões isoladas desacompanhadas de documentação probatória`,
+          `Narrativas de apelo emocional desprovidas de respaldo analítico`,
         ],
       },
       {
-        statement: `Qual critério é considerado essencial para avaliar a qualidade e a veracidade de proposições relativas a "${topic}"?`,
-        explanation: `A validade de afirmativas sobre ${topic} repousa na replicabilidade, no embasamento factual e na consistência lógica das demonstrações.`,
-        correct: `Consistência lógica interna corroborada por evidências documentais ou experimentais verificáveis`,
+        statement: `Em síntese, o domínio aprofundado dos fatos e mecanismos de "${topic}" capacita o participante a:`,
+        explanation: `O conhecimento factual e rigoroso sobre ${topic} instrumentaliza o indivíduo para discernir cenários, identificar causalidades reais e emitir julgamentos qualificados.`,
+        correct: `Interpretar cenários com autonomia intelectual, discernindo evidências concretas de conclusões precipitadas`,
         distractors: [
-          `Popularidade momentânea em meios de comunicação de massa`,
-          `Opiniões isoladas emitidas sem referência a fontes primárias`,
-          `Afirmações retóricas desacompanhadas de sustentação analítica`,
-        ],
-      },
-      {
-        statement: `Sob a ótica da responsabilidade e da ética, qual princípio rege as deliberações técnicas em "${topic}"?`,
-        explanation: `A conduta ética em ${topic} exige compromisso com a verdade, transparência, integridade acadêmica e bem-estar coletivo.`,
-        correct: `Compromisso com a veracidade factual, transparência de métodos e respeito ao interesse público`,
-        distractors: [
-          `Busca de benefícios setoriais em detrimento da integridade das informações`,
-          `Omissão deliberada de dados contrários a hipóteses preliminares`,
-          `Flexibilização de padrões éticos para atender conveniências imediatas`,
-        ],
-      },
-      {
-        statement: `Em síntese, o domínio aprofundado de "${topic}" capacita o estudante prioritariamente para:`,
-        explanation: `A apropriação crítica de ${topic} fornece as ferramentas intelectuais para tomar decisões fundamentadas, discernir fatos de distorções e atuar de forma consciente.`,
-        correct: `Tomar decisões qualificadas, fundamentadas em análise crítica de fatos e teorias comprovadas`,
-        distractors: [
-          `Memorizar termos técnicos sem compreender suas correlações lógicas`,
-          `Aceitar passivamente qualquer narrativa sem questionamento analítico`,
-          `Desconsiderar variáveis práticas no processo de julgamento`,
+          `Decorar jargões e nomenclaturas sem entender suas correlações factuais`,
+          `Aceitar de forma acrítica qualquer informação veiculada sem questionamento`,
+          `Ignorar as repercussões práticas das decisões em prol de teorias abstratas`,
         ],
       },
     ];
@@ -507,7 +491,136 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
     const points = difficulty === 'HARD' ? 20 : difficulty === 'EASY' ? 10 : 15;
     const lowerTopic = topic.toLowerCase();
 
-    // Banco de tópicos curriculares com questões reais e aprofundadas
+    // 1. ATUALIDADES, GEOPOLÍTICA E BRASIL CONTEMPORÂNEO (2024-2026)
+    if (
+      lowerTopic.includes('atualidade') ||
+      lowerTopic.includes('atualidades') ||
+      lowerTopic.includes('geopolítica') ||
+      lowerTopic.includes('geopolitica') ||
+      lowerTopic.includes('mundo contemporâneo') ||
+      lowerTopic.includes('cenário global') ||
+      lowerTopic.includes('notícia') ||
+      lowerTopic.includes('noticias')
+    ) {
+      return {
+        title: `Atualidades & Geopolítica: Desafios Contemporâneos e Brasil`,
+        description: `Questões factuais e aprofundadas sobre os principais acontecimentos econômicos, climáticos e geopolíticos recentes no Brasil e no mundo.`,
+        questions: [
+          {
+            statement: 'Promulgada como Emenda Constitucional 132/2023, a Reforma Tributária sobre o consumo no Brasil instituiu qual modelo de tributação para simplificar o sistema?',
+            explanation: 'A reforma tributária do consumo substitui PIS, Cofins, IPI, ICMS e ISS pelo modelo de IVA Dual (Imposto sobre Valor Agregado), composto pelo IBS (estados e municípios) e pela CBS (União).',
+            pointsReward: points,
+            options: [
+              { text: 'IVA Dual, composto pelo IBS (subnacional) e pela CBS (federal)', isCorrect: true },
+              { text: 'Imposto único sobre movimentações financeiras no modelo da antiga CPMF', isCorrect: false },
+              { text: 'Tarifa aduaneira única e progressiva exclusiva para exportações de commodities', isCorrect: false },
+              { text: 'Alíquota fixa idêntica para o Imposto de Renda de pessoas físicas e jurídicas', isCorrect: false },
+            ],
+          },
+          {
+            statement: 'O bloco dos BRICS concretizou uma expansão histórica de sua composição geopolítica. Quais nações integraram oficialmente o bloco nessa ampliação recente?',
+            explanation: 'A ampliação dos BRICS oficializou a entrada de países como Egito, Etiópia, Irã e Emirados Árabes Unidos, reforçando a representatividade do Sul Global na economia internacional.',
+            pointsReward: points,
+            options: [
+              { text: 'Egito, Etiópia, Irã e Emirados Árabes Unidos', isCorrect: true },
+              { text: 'Austrália, Canadá, Coreia do Sul e Japão', isCorrect: false },
+              { text: 'México, Chile, Colômbia e Peru', isCorrect: false },
+              { text: 'Noruega, Suécia, Finlândia e Dinamarca', isCorrect: false },
+            ],
+          },
+          {
+            statement: 'O Brasil foi formalmente homologado pela ONU como país-sede da 30ª Conferência das Partes sobre Mudança do Clima (COP30). Qual capital amazônica sediará o evento global?',
+            explanation: 'A cidade de Belém, capital do Pará, foi escolhida para sediar a COP30, posicionando a Amazônia no centro das discussões mundiais sobre transição ecológica e metas climáticas.',
+            pointsReward: points,
+            options: [
+              { text: 'Belém (Pará)', isCorrect: true },
+              { text: 'Manaus (Amazonas)', isCorrect: false },
+              { text: 'Porto Velho (Rondônia)', isCorrect: false },
+              { text: 'Macapá (Amapá)', isCorrect: false },
+            ],
+          },
+          {
+            statement: 'No campo da governança tecnológica global, qual bloco internacional aprovou a primeira legislação abrangente e vinculante do mundo para regulamentar a Inteligência Artificial (AI Act)?',
+            explanation: 'A União Europeia aprovou o Regulamento da Inteligência Artificial (AI Act), estabelecendo exigências e limites rígidos de conformidade com base no nível de risco das aplicações de IA.',
+            pointsReward: points,
+            options: [
+              { text: 'União Europeia (UE)', isCorrect: true },
+              { text: 'Mercado Comum do Sul (Mercosul)', isCorrect: false },
+              { text: 'Associação de Nações do Sudeste Asiático (ASEAN)', isCorrect: false },
+              { text: 'Comunidade Britânica de Nações (Commonwealth)', isCorrect: false },
+            ],
+          },
+          {
+            statement: 'Durante a presidência do G20 pelo Brasil, qual foi a iniciativa central lançada no âmbito social e multilateral para engajar países e organismos globais?',
+            explanation: 'O Brasil estruturou como marco principal de sua presidência a Aliança Global contra a Fome e a Pobreza, além de focar na reforma das instituições de governança global e transição ecológica justa.',
+            pointsReward: points,
+            options: [
+              { text: 'Aliança Global contra a Fome e a Pobreza', isCorrect: true },
+              { text: 'Criação de um Banco Central Único para o Hemisfério Sul', isCorrect: false },
+              { text: 'Tratado de Desarmamento Cibernético Total Obrigatório', isCorrect: false },
+              { text: 'Fundo Fixo de Subsídio Exclusivo para Combustíveis Fósseis', isCorrect: false },
+            ],
+          },
+          {
+            statement: 'Os dados consolidados do Censo Demográfico do IBGE revelaram qual transformação estrutural decisiva na pirâmide etária brasileira?',
+            explanation: 'O Censo demonstrou que a taxa de fecundidade está abaixo do nível de reposição (cerca de 1,6 filho por mulher), acelerando o envelhecimento populacional e desacelerando o crescimento demográfico.',
+            pointsReward: points,
+            options: [
+              { text: 'Aceleração do envelhecimento populacional e forte queda na taxa de fecundidade', isCorrect: true },
+              { text: 'Crescimento demográfico acelerado superando 3,5% ao ano em todas as capitais', isCorrect: false },
+              { text: 'Migração maciça da população urbana de volta para atividades exclusivamente rurais', isCorrect: false },
+              { text: 'Aumento expressivo da proporção de crianças e adolescentes na composição total', isCorrect: false },
+            ],
+          },
+          {
+            statement: 'No panorama mundial da transição energética, qual característica diferencia favoravelmente a matriz elétrica brasileira em relação à média internacional?',
+            explanation: 'Enquanto a matriz elétrica mundial depende em mais de 60% de combustíveis fósseis, a do Brasil possui mais de 80% de fontes renováveis (hidrelétrica, eólica, solar e biomassa).',
+            pointsReward: points,
+            options: [
+              { text: 'Mais de 80% da eletricidade é gerada por fontes limpas e renováveis (hidro, eólica, solar e biomassa)', isCorrect: true },
+              { text: 'Dependência quase exclusiva de carvão mineral importado e xisto betuminoso', isCorrect: false },
+              { text: 'Geração prioritária por usinas termonucleares de grande porte no interior do país', isCorrect: false },
+              { text: 'Inexistência de parques eólicos ou fazendas solares integrados ao Sistema Nacional', isCorrect: false },
+            ],
+          },
+          {
+            statement: 'O Novo Arcabouço Fiscal brasileiro (LC 200/2023), aprovado em substituição ao antigo Teto de Gastos, estabeleceu como regra fiscal fundamental:',
+            explanation: 'O arcabouço limita o crescimento real das despesas a uma porcentagem do crescimento real das receitas (entre 70% ou 50%, com piso de 0,6% e teto de 2,5% ao ano), associado a metas de resultado primário.',
+            pointsReward: points,
+            options: [
+              { text: 'Crescimento das despesas vinculado a uma porcentagem da variação real das receitas públicas', isCorrect: true },
+              { text: 'Emissão contínua de títulos da dívida sem qualquer trava orçamentária ou meta de superávit', isCorrect: false },
+              { text: 'Congelamento nominal absoluto de todas as dotações orçamentárias por 20 anos consecutivos', isCorrect: false },
+              { text: 'Extinção de todas as vinculações constitucionais mínimas para saúde e educação pública', isCorrect: false },
+            ],
+          },
+          {
+            statement: 'Qual é o principal foco das discussões em torno do Acordo de Livre Comércio entre Mercosul e União Europeia que gerou impasses diplomáticos recentes?',
+            explanation: 'As resistências giram em torno de exigências ambientais europeias adicionais (como leis de combate ao desmatamento com barreiras comerciais) e protecionismo agrícola de produtores franceses.',
+            pointsReward: points,
+            options: [
+              { text: 'Exigências ambientais unilaterais europeias e pressões protecionistas no setor agropecuário', isCorrect: true },
+              { text: 'Adoção compulsória de uma moeda comum única para ambos os blocos continentais', isCorrect: false },
+              { text: 'Proibição total do tráfego aéreo de passageiros entre os países sul-americanos e europeus', isCorrect: false },
+              { text: 'Veto recíproco a investimentos no setor de telecomunicações e energia solar', isCorrect: false },
+            ],
+          },
+          {
+            statement: 'O impacto de eventos climáticos extremos recentes no Brasil (como secas históricas na Amazônia e inundações no Sul) colocou no centro da agenda pública o conceito de:',
+            explanation: 'A gravidade dos eventos extremos acelerou as políticas de Adaptação Climática e Resiliência Urbana, voltadas para prevenção de desastres e infraestrutura sustentável.',
+            pointsReward: points,
+            options: [
+              { text: 'Adaptação climática, gestão de risco de desastres e resiliência urbana e hidrológica', isCorrect: true },
+              { text: 'Eliminação imediata de barragens de contenção em prol do curso natural desregulado', isCorrect: false },
+              { text: 'Suspensão de alertas meteorológicos e monitoramento por satélites de observação', isCorrect: false },
+              { text: 'Concentração de habitações populares em encostas e várzeas de alto risco geológico', isCorrect: false },
+            ],
+          },
+        ],
+      };
+    }
+
+    // 2. HISTÓRIA DO BRASIL: PROCLAMAÇÃO DA REPÚBLICA
     if (lowerTopic.includes('república') || lowerTopic.includes('republica') || lowerTopic.includes('proclamação')) {
       return {
         title: `História do Brasil: Proclamação da República (1889)`,
@@ -572,6 +685,7 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
       };
     }
 
+    // 3. BIOLOGIA E GENÉTICA: DNA
     if (lowerTopic.includes('dna') || lowerTopic.includes('genética') || lowerTopic.includes('genetica') || lowerTopic.includes('biologia')) {
       return {
         title: `Biologia: Genética Molecular e Estrutura do DNA`,
@@ -636,6 +750,7 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
       };
     }
 
+    // 4. TECNOLOGIA E INTELIGÊNCIA ARTIFICIAL
     if (
       lowerTopic.includes('inteligência artificial') ||
       lowerTopic.includes('inteligencia artificial') ||
@@ -707,6 +822,7 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
       };
     }
 
+    // 5. ECONOMIA E EDUCAÇÃO FINANCEIRA
     if (
       lowerTopic.includes('economia') ||
       lowerTopic.includes('inflação') ||
@@ -767,6 +883,7 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
       };
     }
 
+    // 6. GEOGRAFIA E MEIO AMBIENTE
     if (
       lowerTopic.includes('geografia') ||
       lowerTopic.includes('bioma') ||
