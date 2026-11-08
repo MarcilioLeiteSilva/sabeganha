@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
-import { CurrencyType } from '@prisma/client';
+import { CurrencyType, AccountType } from '@prisma/client';
 
 @Injectable()
 export class MobileAdapterService {
@@ -618,40 +618,50 @@ export class MobileAdapterService {
    */
   async getLeaderboard(userId?: string) {
     try {
-      const wallets = await this.prisma.wallet.findMany({
-        where: { currency: CurrencyType.QUIZ_COINS },
-        orderBy: { balance: 'desc' },
+      const accounts = await this.prisma.ledgerAccount.findMany({
+        where: {
+          currencyType: CurrencyType.QUIZ_COINS,
+          accountType: AccountType.USER_WALLET,
+        },
+        orderBy: { cachedBalance: 'desc' },
         take: 25,
         include: {
-          user: {
-            include: { profile: true },
+          wallet: {
+            include: {
+              user: {
+                include: { profile: true },
+              },
+            },
           },
         },
       });
 
-      const result = wallets.map((w, index) => ({
-        id: index + 1,
-        user_name: w.user?.profile?.displayName || w.user?.email?.split('@')[0] || `Sábio ${index + 1}`,
-        full_name: w.user?.profile?.displayName || w.user?.email?.split('@')[0] || `Sábio ${index + 1}`,
-        email: w.user?.email || '',
-        country_code: 'BR',
-        mobile_number: '',
-        country_name: 'Brasil',
-        type: 1,
-        image_type: 1,
-        image: w.user?.profile?.avatarUrl || '',
-        bio: 'Entusiasta do Conhecimento SabeGanha',
-        reference_code: '',
-        wallet_coin: Math.max(0, Math.floor(Number(w.balance))),
-        device_type: 1,
-        device_token: '',
-        qr_code: '',
-        is_account_verify: 1,
-        status: 1,
-        created_at: w.createdAt?.toISOString() || new Date().toISOString(),
-        updated_at: w.updatedAt?.toISOString() || new Date().toISOString(),
-        rank: index + 1,
-      }));
+      const result = accounts.map((a, index) => {
+        const user = a.wallet?.user;
+        return {
+          id: index + 1,
+          user_name: user?.profile?.displayName || user?.email?.split('@')[0] || `Sábio ${index + 1}`,
+          full_name: user?.profile?.displayName || user?.email?.split('@')[0] || `Sábio ${index + 1}`,
+          email: user?.email || '',
+          country_code: 'BR',
+          mobile_number: '',
+          country_name: 'Brasil',
+          type: 1,
+          image_type: 1,
+          image: user?.profile?.avatarUrl || '',
+          bio: 'Entusiasta do Conhecimento SabeGanha',
+          reference_code: '',
+          wallet_coin: Math.max(0, Math.floor(Number(a.cachedBalance))),
+          device_type: 1,
+          device_token: '',
+          qr_code: '',
+          is_account_verify: 1,
+          status: 1,
+          created_at: a.updatedAt?.toISOString() || new Date().toISOString(),
+          updated_at: a.updatedAt?.toISOString() || new Date().toISOString(),
+          rank: index + 1,
+        };
+      });
 
       // Garante pelo menos um usuário no ranking se o banco estiver inicial
       if (result.length === 0) {
@@ -683,7 +693,7 @@ export class MobileAdapterService {
       // Procura posição do usuário requisitante
       let currentUserEntry = result[0];
       if (userId) {
-        const found = result.find((_, i) => wallets[i]?.userId === userId);
+        const found = result.find((_, i) => accounts[i]?.wallet?.userId === userId);
         if (found) {
           currentUserEntry = found;
         } else {
@@ -1240,6 +1250,17 @@ export class MobileAdapterService {
     return {
       status: 200,
       message: 'Transação registrada com sucesso.',
+      result: [],
+    };
+  }
+
+  /**
+   * Histórico de indicações (Refer & Earn)
+   */
+  async getReferEarnHistory() {
+    return {
+      status: 200,
+      message: 'success',
       result: [],
     };
   }
