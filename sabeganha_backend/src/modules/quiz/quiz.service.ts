@@ -8,6 +8,8 @@ export interface CreateQuizDto {
   difficulty?: string;
   timeLimit?: number;
   isActive?: boolean;
+  scheduledAt?: string;
+  isAiGenerated?: boolean;
   questions?: {
     statement: string;
     explanation?: string;
@@ -26,6 +28,7 @@ export interface UpdateQuizDto {
   difficulty?: string;
   timeLimit?: number;
   isActive?: boolean;
+  scheduledAt?: string;
   questions?: {
     statement: string;
     explanation?: string;
@@ -44,11 +47,92 @@ export interface GenerateQuizAiDto {
   questionsCount?: number;
   apiKey?: string;
   autoPublish?: boolean;
+  scheduledAt?: string;
+  toneGuideline?: string;
+  suggestionId?: string;
+}
+
+export interface AiGovernanceConfig {
+  maxGenerationsPerWeek: number;
+  maxGenerationsPerDay: number;
+  currentWeekUsage: number;
+  currentDayUsage: number;
+  weekResetDate: string;
+  dayResetDate: string;
+  requireCuratorApproval: boolean;
+  securityPromptFiltersActive: boolean;
+  communityVotingEnabled: boolean;
+  bonusCoinMultiplier: number; // Ex: 1.20 (+20% QC para engajar em quizzes de IA)
+}
+
+export interface UserTopicSuggestion {
+  id: string;
+  topic: string;
+  categoryName?: string;
+  categoryId?: string;
+  suggestedBy?: string;
+  votesCount: number;
+  status: 'PENDING' | 'ACCEPTED' | 'GENERATED';
+  createdAt: string;
 }
 
 @Injectable()
 export class QuizService {
   private readonly logger = new Logger(QuizService.name);
+
+  // Governança e Parâmetros de Controle de Quotas
+  private governanceConfig: AiGovernanceConfig = {
+    maxGenerationsPerWeek: 5,
+    maxGenerationsPerDay: 3,
+    currentWeekUsage: 1,
+    currentDayUsage: 1,
+    weekResetDate: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+    dayResetDate: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+    requireCuratorApproval: true,
+    securityPromptFiltersActive: true,
+    communityVotingEnabled: true,
+    bonusCoinMultiplier: 1.20,
+  };
+
+  // Espaço para Sugestões dos Usuários (Crowdsourcing de Conteúdo)
+  private userSuggestions: UserTopicSuggestion[] = [
+    {
+      id: 'sug_1',
+      topic: 'História da Aviação: De Santos Dumont aos Jatos Comerciais',
+      categoryName: 'História',
+      suggestedBy: 'Gabriel Ramos (@gramos)',
+      votesCount: 42,
+      status: 'PENDING',
+      createdAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
+    },
+    {
+      id: 'sug_2',
+      topic: 'Energias Renováveis e Sustentabilidade no Brasil',
+      categoryName: 'Ciência e Tecnologia',
+      suggestedBy: 'Mariana Lima (@mlima)',
+      votesCount: 38,
+      status: 'PENDING',
+      createdAt: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(),
+    },
+    {
+      id: 'sug_3',
+      topic: 'Grandes Clássicos do Cinema Brasileiro e Cinema Novo',
+      categoryName: 'Entretenimento',
+      suggestedBy: 'Lucas Silveira (@lsilveira)',
+      votesCount: 29,
+      status: 'PENDING',
+      createdAt: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString(),
+    },
+    {
+      id: 'sug_4',
+      topic: 'Educação Financeira: Tesouro Direto e Renda Fixa',
+      categoryName: 'Matemática e Lógica',
+      suggestedBy: 'Ana Clara (@anaclara_fin)',
+      votesCount: 25,
+      status: 'PENDING',
+      createdAt: new Date(Date.now() - 6 * 24 * 3600 * 1000).toISOString(),
+    },
+  ];
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -119,14 +203,26 @@ export class QuizService {
       throw new NotFoundException(`Categoria ${dto.categoryId} não encontrada.`);
     }
 
+    let description = dto.description || `Quiz educativo sobre ${dto.title}.`;
+    let isActive = dto.isActive !== undefined ? dto.isActive : true;
+
+    // Se houver agendamento
+    if (dto.scheduledAt) {
+      const scheduledDate = new Date(dto.scheduledAt);
+      if (!isNaN(scheduledDate.getTime()) && scheduledDate > new Date()) {
+        isActive = false; // Permanece inativo até a data
+        description = `[AGENDADO para ${scheduledDate.toLocaleDateString('pt-BR')}] ${description}`;
+      }
+    }
+
     return this.prisma.quiz.create({
       data: {
         categoryId: dto.categoryId,
         title: dto.title,
-        description: dto.description || `Quiz educativo sobre ${dto.title}.`,
+        description,
         difficulty: dto.difficulty || 'INTERMEDIATE',
         timeLimit: dto.timeLimit || 30,
-        isActive: dto.isActive !== undefined ? dto.isActive : true,
+        isActive,
         questions: dto.questions && dto.questions.length > 0 ? {
           create: dto.questions.map((q) => ({
             statement: q.statement,
@@ -220,20 +316,207 @@ export class QuizService {
     return { message: 'Quiz e questões associadas removidos com sucesso.' };
   }
 
+  // -------------------------------------------------------------
+  // GOVERNANÇA, AGENDAMENTO E AUTORIZAÇÃO (OPÇÃO 2 AVANÇADA)
+  // -------------------------------------------------------------
+
+  getGovernanceStatus() {
+    this.refreshQuotasIfNeeded();
+    return {
+      status: 200,
+      data: {
+        ...this.governanceConfig,
+        remainingThisWeek: Math.max(0, this.governanceConfig.maxGenerationsPerWeek - this.governanceConfig.currentWeekUsage),
+        remainingToday: Math.max(0, this.governanceConfig.maxGenerationsPerDay - this.governanceConfig.currentDayUsage),
+      },
+    };
+  }
+
+  updateGovernanceConfig(dto: Partial<AiGovernanceConfig>) {
+    if (dto.maxGenerationsPerWeek !== undefined) {
+      this.governanceConfig.maxGenerationsPerWeek = Math.max(1, Number(dto.maxGenerationsPerWeek));
+    }
+    if (dto.maxGenerationsPerDay !== undefined) {
+      this.governanceConfig.maxGenerationsPerDay = Math.max(1, Number(dto.maxGenerationsPerDay));
+    }
+    if (dto.requireCuratorApproval !== undefined) {
+      this.governanceConfig.requireCuratorApproval = !!dto.requireCuratorApproval;
+    }
+    return this.getGovernanceStatus();
+  }
+
+  async approveQuiz(id: string, curatorName: string = 'SuperAdmin') {
+    const quiz = await this.prisma.quiz.findUnique({ where: { id } });
+    if (!quiz) throw new NotFoundException('Quiz não encontrado.');
+
+    const cleanDescription = (quiz.description || '')
+      .replace(/\[PENDENTE DE CURADORIA\]\s*/gi, '')
+      .replace(/\[AGENDADO.*?\]\s*/gi, '')
+      .trim();
+
+    const updated = await this.prisma.quiz.update({
+      where: { id },
+      data: {
+        isActive: true,
+        description: `[Curado por ${curatorName}] ${cleanDescription}`,
+      },
+    });
+
+    return {
+      status: 200,
+      message: `Quiz "${quiz.title}" aprovado e publicado com sucesso no catálogo oficial do SabeGanha!`,
+      data: updated,
+    };
+  }
+
+  async scheduleQuiz(id: string, scheduledFor: string) {
+    const quiz = await this.prisma.quiz.findUnique({ where: { id } });
+    if (!quiz) throw new NotFoundException('Quiz não encontrado.');
+
+    const targetDate = new Date(scheduledFor);
+    if (isNaN(targetDate.getTime()) || targetDate <= new Date()) {
+      throw new BadRequestException('A data de agendamento deve ser uma data e hora futura válida.');
+    }
+
+    const updated = await this.prisma.quiz.update({
+      where: { id },
+      data: {
+        isActive: false,
+        description: `[AGENDADO para ${targetDate.toLocaleDateString('pt-BR')} às ${targetDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}] ${quiz.description || ''}`,
+      },
+    });
+
+    return {
+      status: 200,
+      message: `Quiz agendado com sucesso para publicação em ${targetDate.toLocaleString('pt-BR')}.`,
+      data: updated,
+    };
+  }
+
+  // -------------------------------------------------------------
+  // ESPAÇO PARA SUGESTÕES DA COMUNIDADE (CROWDSOURCING)
+  // -------------------------------------------------------------
+
+  getSuggestions() {
+    return {
+      status: 200,
+      data: this.userSuggestions.sort((a, b) => b.votesCount - a.votesCount),
+    };
+  }
+
+  createSuggestion(topic: string, categoryName?: string, categoryId?: string, userName?: string) {
+    if (!topic || !topic.trim()) {
+      throw new BadRequestException('Tema da sugestão é obrigatório.');
+    }
+    this.validatePromptSafety(topic.trim());
+
+    const newSug: UserTopicSuggestion = {
+      id: `sug_${Date.now()}`,
+      topic: topic.trim(),
+      categoryName: categoryName || 'Geral',
+      categoryId,
+      suggestedBy: userName || 'Jogador Anônimo',
+      votesCount: 1,
+      status: 'PENDING',
+      createdAt: new Date().toISOString(),
+    };
+
+    this.userSuggestions.unshift(newSug);
+    return {
+      status: 201,
+      message: 'Sugestão enviada com sucesso! Outros jogadores já podem votar nela.',
+      data: newSug,
+    };
+  }
+
+  voteSuggestion(id: string) {
+    const sug = this.userSuggestions.find((s) => s.id === id);
+    if (!sug) throw new NotFoundException('Sugestão não encontrada.');
+    sug.votesCount++;
+    return {
+      status: 200,
+      message: `Voto registrado para "${sug.topic}"! Total: ${sug.votesCount} votos.`,
+      data: sug,
+    };
+  }
+
+  // -------------------------------------------------------------
+  // SEGURANÇA E GUARDRAILS (PROMPT INJECTION & MODELO A)
+  // -------------------------------------------------------------
+
+  private validatePromptSafety(topic: string) {
+    if (!this.governanceConfig.securityPromptFiltersActive) return;
+
+    const dangerousPatterns = [
+      /ignore\s+(previous|all)\s+instructions/i,
+      /system\s+prompt/i,
+      /jailbreak/i,
+      /<script[\s\S]*?>/i,
+      /drop\s+table/i,
+      /\b(cassino|aposta|bet365|blaze|jogo do bicho|tigrinho|roleta|slot|poker a dinheiro)\b/i, // Modelo A
+      /\b(pornografia|sexo explícito|drogas ilícitas|armas de fogo ilegais)\b/i,
+    ];
+
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(topic)) {
+        throw new BadRequestException(
+          'Tema bloqueado pelos filtros de segurança do SabeGanha. Conformidade estrita com o Modelo A: proibido conteúdo ligado a apostas, sorte ou ilícitos.'
+        );
+      }
+    }
+  }
+
+  private refreshQuotasIfNeeded() {
+    const now = new Date();
+    if (new Date(this.governanceConfig.dayResetDate) <= now) {
+      this.governanceConfig.currentDayUsage = 0;
+      this.governanceConfig.dayResetDate = new Date(now.getTime() + 24 * 3600 * 1000).toISOString();
+    }
+    if (new Date(this.governanceConfig.weekResetDate) <= now) {
+      this.governanceConfig.currentWeekUsage = 0;
+      this.governanceConfig.weekResetDate = new Date(now.getTime() + 7 * 24 * 3600 * 1000).toISOString();
+    }
+  }
+
+  private checkAndIncrementQuota() {
+    this.refreshQuotasIfNeeded();
+
+    if (this.governanceConfig.currentWeekUsage >= this.governanceConfig.maxGenerationsPerWeek) {
+      throw new BadRequestException(
+        `Limite semanal de gerações atingido (${this.governanceConfig.maxGenerationsPerWeek}/${this.governanceConfig.maxGenerationsPerWeek}). Reinício do ciclo em ${new Date(this.governanceConfig.weekResetDate).toLocaleDateString('pt-BR')}. Altere o parâmetro de governança para ampliar.`
+      );
+    }
+
+    if (this.governanceConfig.currentDayUsage >= this.governanceConfig.maxGenerationsPerDay) {
+      throw new BadRequestException(
+        `Limite diário de gerações atingido (${this.governanceConfig.maxGenerationsPerDay}/${this.governanceConfig.maxGenerationsPerDay}). Tente novamente amanhã ou ajuste a quota de governança.`
+      );
+    }
+
+    this.governanceConfig.currentDayUsage++;
+    this.governanceConfig.currentWeekUsage++;
+  }
+
   /**
-   * OPÇÃO 2: Gerador de Quizzes com Inteligência Artificial (Google Gemini)
-   * À prova de falhas com contingência curricular automática
+   * GERADOR DE QUIZZES COM IA (GEMINI 1.5 FLASH) COM GOVERNANÇA E SEGURANÇA
    */
   async generateQuizWithAI(dto: GenerateQuizAiDto) {
     if (!dto.topic || !dto.topic.trim()) {
-      throw new BadRequestException('O tema (topic) do quiz é obrigatório para a IA gerar as perguntas.');
+      throw new BadRequestException('O tema do quiz é obrigatório.');
     }
 
     const topic = dto.topic.trim();
+    // 1. Guardrail de Segurança Anti-Injection e Modelo A
+    this.validatePromptSafety(topic);
+
+    // 2. Validação de Cotas de Governança
+    this.checkAndIncrementQuota();
+
     const count = Math.min(Math.max(Number(dto.questionsCount) || 5, 1), 15);
     const difficulty = dto.difficulty || 'INTERMEDIATE';
     const apiKey = (dto.apiKey && dto.apiKey.trim()) || process.env.GEMINI_API_KEY;
     const points = difficulty === 'HARD' ? 20 : difficulty === 'EASY' ? 10 : 15;
+    const toneGuideline = dto.toneGuideline ? `Diretriz adicional de estilo/foco: ${dto.toneGuideline}.` : '';
 
     let generatedQuizData: {
       title: string;
@@ -248,13 +531,14 @@ export class QuizService {
 
     let geminiError: string | null = null;
 
-    // 1. Se houver chave Gemini, tenta consumir a API do Google Gemini 1.5 Flash
+    // 3. Execução da IA Generativa (Google Gemini 1.5 Flash)
     if (apiKey) {
       try {
         const prompt = `Você é um professor e especialista curricular brasileiro para a plataforma educativa SabeGanha (Aprenda. Jogue. Conquiste).
 Crie um quiz educativo com alto rigor factual e pedagógico sobre o tema "${topic}".
 Dificuldade: ${difficulty}.
 Quantidade de perguntas EXATA: ${count}.
+${toneGuideline}
 
 REGRAS DE CONTEÚDO:
 - Crie perguntas concretas e factuais sobre os ACONTECIMENTOS REAIS, fatos históricos, mecanismos, dados, leis ou pessoas envolvidas no tema "${topic}".
@@ -320,39 +604,55 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
       }
     }
 
-    // 2. Motor de Inteligência Curricular Integrado (se sem chave ou caso a API do Google tenha falhado)
+    // 4. Contingência Inteligente
     if (!generatedQuizData || !generatedQuizData.questions || generatedQuizData.questions.length === 0) {
       generatedQuizData = this.buildCurricularFallbackQuiz(topic, difficulty, count);
     }
 
-    // 3. Garante que a quantidade de questões retornada seja EXATAMENTE a requisitada (ex: 10 questões)
+    // 5. Garantia da quantidade exata de questões solicitadas
     this.fillToRequestedCount(generatedQuizData, topic, points, count);
 
-    // 4. Se autoPublish = true e categoryId informado, cadastra direto no banco
+    // Se o quiz veio de uma sugestão da comunidade, marca como gerado
+    if (dto.suggestionId) {
+      const sug = this.userSuggestions.find((s) => s.id === dto.suggestionId);
+      if (sug) sug.status = 'GENERATED';
+    }
+
+    // 6. Publicação ou Agendamento Automático
     if (dto.autoPublish && dto.categoryId) {
+      let isPublished = !this.governanceConfig.requireCuratorApproval;
+      let finalDescription = generatedQuizData.description;
+
+      if (this.governanceConfig.requireCuratorApproval) {
+        isPublished = false;
+        finalDescription = `[PENDENTE DE CURADORIA] ${finalDescription}`;
+      }
+
       const created = await this.createQuiz({
         categoryId: dto.categoryId,
         title: generatedQuizData.title,
-        description: generatedQuizData.description,
+        description: finalDescription,
         difficulty,
         timeLimit: 30,
-        isActive: true,
+        isActive: isPublished,
+        scheduledAt: dto.scheduledAt,
         questions: generatedQuizData.questions,
       });
 
       return {
         status: 200,
-        message: 'Quiz gerado com IA e publicado no banco de dados com sucesso!',
+        message: this.governanceConfig.requireCuratorApproval
+          ? 'Quiz gerado por IA submetido para curadoria! Está listado para aprovação.'
+          : 'Quiz gerado por IA publicado com sucesso no catálogo!',
         data: created,
       };
     }
 
-    // Retorna para visualização e edição prévia pelo Admin
-    let responseMessage = 'Quiz gerado pelo Motor Curricular Integrado com sucesso! Revise e publique.';
+    let responseMessage = 'Quiz gerado com sucesso pelo Motor Curricular! Revise antes de publicar.';
     if (apiKey && !geminiError) {
-      responseMessage = 'Quiz gerado via Google Gemini 1.5 Flash com sucesso! Revise e publique.';
+      responseMessage = 'Quiz gerado via Google Gemini 1.5 Flash em tempo real! Revise antes de publicar.';
     } else if (geminiError) {
-      responseMessage = `${geminiError}. O quiz foi gerado com sucesso pelo Motor Curricular Integrado para garantir sua operação contínua.`;
+      responseMessage = `${geminiError}. O quiz foi gerado pelo Motor Curricular para garantir a continuidade da operação.`;
     }
 
     return {
@@ -364,14 +664,14 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
         difficulty,
         timeLimit: 30,
         questions: generatedQuizData.questions,
+        quotaStatus: {
+          remainingThisWeek: Math.max(0, this.governanceConfig.maxGenerationsPerWeek - this.governanceConfig.currentWeekUsage),
+          totalThisWeek: this.governanceConfig.maxGenerationsPerWeek,
+        },
       },
     };
   }
 
-  /**
-   * Garante que o quiz atinja o número de questões solicitado pelo usuário (até 15 questões)
-   * com enunciados factuais, dinâmicos e contextualizados (sem meta-linguagem)
-   */
   private fillToRequestedCount(
     quiz: { title: string; description: string; questions: any[] },
     topic: string,
@@ -484,14 +784,11 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
     }
   }
 
-  /**
-   * Motor de Inteligência Curricular com Conhecimento Contextual Autêntico
-   */
   private buildCurricularFallbackQuiz(topic: string, difficulty: string, count: number) {
     const points = difficulty === 'HARD' ? 20 : difficulty === 'EASY' ? 10 : 15;
     const lowerTopic = topic.toLowerCase();
 
-    // 1. ATUALIDADES, GEOPOLÍTICA E BRASIL CONTEMPORÂNEO (2024-2026)
+    // 1. ATUALIDADES E GEOPOLÍTICA (2024-2026)
     if (
       lowerTopic.includes('atualidade') ||
       lowerTopic.includes('atualidades') ||
@@ -583,39 +880,6 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
               { text: 'Inexistência de parques eólicos ou fazendas solares integrados ao Sistema Nacional', isCorrect: false },
             ],
           },
-          {
-            statement: 'O Novo Arcabouço Fiscal brasileiro (LC 200/2023), aprovado em substituição ao antigo Teto de Gastos, estabeleceu como regra fiscal fundamental:',
-            explanation: 'O arcabouço limita o crescimento real das despesas a uma porcentagem do crescimento real das receitas (entre 70% ou 50%, com piso de 0,6% e teto de 2,5% ao ano), associado a metas de resultado primário.',
-            pointsReward: points,
-            options: [
-              { text: 'Crescimento das despesas vinculado a uma porcentagem da variação real das receitas públicas', isCorrect: true },
-              { text: 'Emissão contínua de títulos da dívida sem qualquer trava orçamentária ou meta de superávit', isCorrect: false },
-              { text: 'Congelamento nominal absoluto de todas as dotações orçamentárias por 20 anos consecutivos', isCorrect: false },
-              { text: 'Extinção de todas as vinculações constitucionais mínimas para saúde e educação pública', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'Qual é o principal foco das discussões em torno do Acordo de Livre Comércio entre Mercosul e União Europeia que gerou impasses diplomáticos recentes?',
-            explanation: 'As resistências giram em torno de exigências ambientais europeias adicionais (como leis de combate ao desmatamento com barreiras comerciais) e protecionismo agrícola de produtores franceses.',
-            pointsReward: points,
-            options: [
-              { text: 'Exigências ambientais unilaterais europeias e pressões protecionistas no setor agropecuário', isCorrect: true },
-              { text: 'Adoção compulsória de uma moeda comum única para ambos os blocos continentais', isCorrect: false },
-              { text: 'Proibição total do tráfego aéreo de passageiros entre os países sul-americanos e europeus', isCorrect: false },
-              { text: 'Veto recíproco a investimentos no setor de telecomunicações e energia solar', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'O impacto de eventos climáticos extremos recentes no Brasil (como secas históricas na Amazônia e inundações no Sul) colocou no centro da agenda pública o conceito de:',
-            explanation: 'A gravidade dos eventos extremos acelerou as políticas de Adaptação Climática e Resiliência Urbana, voltadas para prevenção de desastres e infraestrutura sustentável.',
-            pointsReward: points,
-            options: [
-              { text: 'Adaptação climática, gestão de risco de desastres e resiliência urbana e hidrológica', isCorrect: true },
-              { text: 'Eliminação imediata de barragens de contenção em prol do curso natural desregulado', isCorrect: false },
-              { text: 'Suspensão de alertas meteorológicos e monitoramento por satélites de observação', isCorrect: false },
-              { text: 'Concentração de habitações populares em encostas e várzeas de alto risco geológico', isCorrect: false },
-            ],
-          },
         ],
       };
     }
@@ -657,276 +921,6 @@ Responda ESTRITAMENTE em formato JSON com o seguinte schema:
               { text: 'Monarquia Constitucional com Poder Moderador e voto censitário', isCorrect: false },
               { text: 'República Parlamentarista com primeiro-ministro eleito pelo Senado', isCorrect: false },
               { text: 'Estado Unitário Centralizado sob tutela vitalícia das Forças Armadas', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'Durante a chamada "República da Espada" (1889-1894), quem foram os dois primeiros presidentes do Brasil?',
-            explanation: 'Deodoro da Fonseca assumiu como chefe do Governo Provisório e primeiro presidente eleito indiretamente, sendo sucedido por Floriano Peixoto após sua renúncia.',
-            pointsReward: points,
-            options: [
-              { text: 'Marechal Deodoro da Fonseca e Marechal Floriano Peixoto', isCorrect: true },
-              { text: 'Prudente de Morais e Campos Sales', isCorrect: false },
-              { text: 'Benjamin Constant e Rui Barbosa', isCorrect: false },
-              { text: 'Rodrigues Alves e Afonso Pena', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'A política do "Encilhamento", promovida por Rui Barbosa nos primeiros anos da República, resultou em qual fenômeno econômico?',
-            explanation: 'A política de emissão desmedida de papel-moeda sem lastro causou forte especulação financeira na Bolsa de Valores e disparada inflacionária.',
-            pointsReward: points,
-            options: [
-              { text: 'Forte bolha especulativa na bolsa e alta inflação decorrente de emissão monetária', isCorrect: true },
-              { text: 'Superávit comercial recorde com valorização abrupta da moeda brasileira', isCorrect: false },
-              { text: 'Estatização completa do setor bancário e ferroviário nacional', isCorrect: false },
-              { text: 'Estabilidade imediata dos preços e eliminação total da dívida externa', isCorrect: false },
-            ],
-          },
-        ],
-      };
-    }
-
-    // 3. BIOLOGIA E GENÉTICA: DNA
-    if (lowerTopic.includes('dna') || lowerTopic.includes('genética') || lowerTopic.includes('genetica') || lowerTopic.includes('biologia')) {
-      return {
-        title: `Biologia: Genética Molecular e Estrutura do DNA`,
-        description: `Conceitos essenciais sobre hereditariedade, transcrição e o código genético fundamental dos seres vivos.`,
-        questions: [
-          {
-            statement: 'Qual é o modelo estrutural do DNA proposto por Watson e Crick em 1953?',
-            explanation: 'O DNA possui a conformação clássica de dupla hélice antiparalela, composta por duas fitas de nucleotídeos unidas por pontes de hidrogênio entre as bases nitrogenadas.',
-            pointsReward: points,
-            options: [
-              { text: 'Dupla hélice antiparalela com pareamento específico de bases nitrogenadas', isCorrect: true },
-              { text: 'Fita simples linear estabilizada exclusivamente por ligações peptídicas', isCorrect: false },
-              { text: 'Tríplice hélice circular unida por pontes dissulfeto', isCorrect: false },
-              { text: 'Estrutura globular amorfa composta apenas por açúcares e fosfatos', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'No DNA, qual regra de emparelhamento de bases nitrogenadas complementares é estritamente seguida?',
-            explanation: 'Pela regra de Chargaff, a Adenina (A) pareia com a Timina (T) através de 2 pontes de hidrogênio, e a Citosina (C) pareia com a Guanina (G) através de 3 pontes.',
-            pointsReward: points,
-            options: [
-              { text: 'Adenina pareia com Timina (A-T) e Guanina pareia com Citosina (G-C)', isCorrect: true },
-              { text: 'Adenina pareia com Guanina (A-G) e Citosina com Timina (C-T)', isCorrect: false },
-              { text: 'Uracila pareia com Timina (U-T) e Citosina com Adenina (C-A)', isCorrect: false },
-              { text: 'Todas as bases podem se emparelhar aleatoriamente sem especificidade', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'O processo pelo qual a informação do DNA é copiada para uma molécula de RNA mensageiro (mRNA) chama-se:',
-            explanation: 'A transcrição é o processo no qual a enzima RNA polimerase sintetiza uma molécula de mRNA com base na sequência de nucleotídeos de um gene no DNA.',
-            pointsReward: points,
-            options: [
-              { text: 'Transcrição gênica', isCorrect: true },
-              { text: 'Tradução ribossômica', isCorrect: false },
-              { text: 'Replicação semiconservativa', isCorrect: false },
-              { text: 'Fosforilação oxidativa', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'Diferente do DNA, qual base nitrogenada é encontrada exclusivamente no RNA?',
-            explanation: 'No RNA, a Uracila substitui a Timina, emparelhando-se com a Adenina durante a transcrição e tradução.',
-            pointsReward: points,
-            options: [
-              { text: 'Uracila', isCorrect: true },
-              { text: 'Timina', isCorrect: false },
-              { text: 'Guanina', isCorrect: false },
-              { text: 'Citosina', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'O que caracteriza a replicação do DNA como sendo "semiconservativa"?',
-            explanation: 'Cada nova molécula de DNA formada contém uma fita original que serviu de molde e uma fita recém-sintetizada.',
-            pointsReward: points,
-            options: [
-              { text: 'Cada molécula filha preserva uma fita original da molécula-mãe e uma recém-sintetizada', isCorrect: true },
-              { text: 'A molécula-mãe é completamente destruída e substituída por fitas inteiramente novas', isCorrect: false },
-              { text: 'Apenas metade dos genes do organismo são duplicados a cada ciclo celular', isCorrect: false },
-              { text: 'A replicação ocorre somente quando há mutações no genoma celular', isCorrect: false },
-            ],
-          },
-        ],
-      };
-    }
-
-    // 4. TECNOLOGIA E INTELIGÊNCIA ARTIFICIAL
-    if (
-      lowerTopic.includes('inteligência artificial') ||
-      lowerTopic.includes('inteligencia artificial') ||
-      lowerTopic.includes('machine learning') ||
-      lowerTopic.includes('deep learning') ||
-      lowerTopic.includes('redes neurais') ||
-      /\bia\b/i.test(topic)
-    ) {
-      return {
-        title: `Tecnologia: Inteligência Artificial e Ciência de Dados`,
-        description: `Fundamentos de aprendizado de máquina, redes neurais e aplicações modernas de inteligência artificial.`,
-        questions: [
-          {
-            statement: 'No aprendizado de máquina (Machine Learning), o que diferencia o Aprendizado Supervisionado do Não-Supervisionado?',
-            explanation: 'No aprendizado supervisionado, o modelo treina com dados rotulados (com entradas e saídas esperadas já conhecidas), enquanto no não-supervisionado busca padrões sem rótulos prévios.',
-            pointsReward: points,
-            options: [
-              { text: 'O supervisionado utiliza dados com rótulos e respostas corretas já conhecidas para o treinamento', isCorrect: true },
-              { text: 'O supervisionado opera sem necessidade de processamento computacional ou dados de treino', isCorrect: false },
-              { text: 'O não-supervisionado exige interferência humana em todas as predições geradas', isCorrect: false },
-              { text: 'Não existe diferença técnica, ambos são sinônimos exatos para algoritmos determinísticos', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'Qual arquitetura de Redes Neurais introduzida em 2017 revolucionou o Processamento de Linguagem Natural (NLP) e deu origem aos LLMs modernos?',
-            explanation: 'O artigo "Attention Is All You Need" (Google, 2017) introduziu os Transformers, que utilizam mecanismos de autoatenção (Self-Attention) para processar textos em larga escala.',
-            pointsReward: points,
-            options: [
-              { text: 'Transformers e o mecanismo de Autoatenção (Self-Attention)', isCorrect: true },
-              { text: 'Redes Neurais Convolucionais 1D tradicionais', isCorrect: false },
-              { text: 'Máquinas de Vetores de Suporte Lineares (SVM)', isCorrect: false },
-              { text: 'Árvores de Decisão Recursivas Estáticas', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'O fenômeno conhecido como "Overfitting" (sobreajuste) em modelos de Machine Learning ocorre quando:',
-            explanation: 'O modelo memoriza os ruídos dos dados de treino, obtendo acurácia próxima de 100% no treinamento, mas falha gravemente ao tentar generalizar com novos dados de teste.',
-            pointsReward: points,
-            options: [
-              { text: 'O modelo memoriza os dados de treino e perde a capacidade de generalizar para novos dados', isCorrect: true },
-              { text: 'O modelo não consegue aprender nem mesmo os padrões mais básicos do conjunto de treino', isCorrect: false },
-              { text: 'O banco de dados é corrompido durante a fase de limpeza e pré-processamento', isCorrect: false },
-              { text: 'O algoritmo atinge convergência perfeita em tempo de execução igual a zero', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'Em modelos generativos de linguagem (como ChatGPT ou Gemini), o que significa o conceito de "Alucinação" (Hallucination)?',
-            explanation: 'Alucinação é quando o modelo gera respostas factualmente incorretas ou inventadas com alto grau de confiança gramatical e semântica.',
-            pointsReward: points,
-            options: [
-              { text: 'Geração de afirmações incorretas ou inventadas expressas com tom confiante e convincente', isCorrect: true },
-              { text: 'Falha crítica de hardware que desliga o servidor durante a inferência', isCorrect: false },
-              { text: 'Criptografia reversa dos pesos sinápticos durante a atualização do modelo', isCorrect: false },
-              { text: 'Processamento simultâneo de dados em múltiplos nós gráficos (GPUs)', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'Qual é a principal função da técnica de "Fine-Tuning" em modelos fundacionais de inteligência artificial?',
-            explanation: 'O fine-tuning ajusta os pesos de um modelo pré-treinado generalista utilizando um conjunto de dados especializado para uma tarefa específica.',
-            pointsReward: points,
-            options: [
-              { text: 'Ajustar um modelo pré-treinado com dados específicos para especializá-lo em um domínio', isCorrect: true },
-              { text: 'Excluir completamente a memória do modelo para reiniciar o treinamento do zero', isCorrect: false },
-              { text: 'Compactar o código-fonte em linguagem assembly para reduzir o consumo elétrico', isCorrect: false },
-              { text: 'Converter dados tabulares em arquivos de áudio analógicos', isCorrect: false },
-            ],
-          },
-        ],
-      };
-    }
-
-    // 5. ECONOMIA E EDUCAÇÃO FINANCEIRA
-    if (
-      lowerTopic.includes('economia') ||
-      lowerTopic.includes('inflação') ||
-      lowerTopic.includes('inflacao') ||
-      lowerTopic.includes('financeira') ||
-      lowerTopic.includes('juros') ||
-      lowerTopic.includes('selic')
-    ) {
-      return {
-        title: `Economia e Educação Financeira: Fundamentos e Cenário Brasileiro`,
-        description: `Avaliação sobre inflação, política monetária, taxa Selic e finanças sustentáveis.`,
-        questions: [
-          {
-            statement: 'Qual é o principal índice oficial utilizado pelo Banco Central do Brasil para medir a inflação da economia e orientar as metas inflacionárias?',
-            explanation: 'O IPCA (Índice Nacional de Preços ao Consumidor Amplo), calculado pelo IBGE, é o índice oficial do sistema de metas para a inflação brasileiro.',
-            pointsReward: points,
-            options: [
-              { text: 'IPCA (Índice Nacional de Preços ao Consumidor Amplo)', isCorrect: true },
-              { text: 'IGP-M (Índice Geral de Preços do Mercado)', isCorrect: false },
-              { text: 'INPC (Índice Nacional de Preços ao Consumidor)', isCorrect: false },
-              { text: 'IPC-Fipe (Índice de Preços ao Consumidor de São Paulo)', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'Quando o Comitê de Política Monetária (COPOM) eleva a taxa básica de juros (Selic), qual é o efeito primário esperado na economia?',
-            explanation: 'A alta dos juros encarece o crédito, desestimula o consumo e o endividamento, reduzindo as pressões de demanda agregada sobre a inflação.',
-            pointsReward: points,
-            options: [
-              { text: 'Encarecer o crédito e desacelerar a demanda de consumo para conter a inflação', isCorrect: true },
-              { text: 'Estimular imediatamente os empréstimos bancários e multiplicar a oferta de moeda', isCorrect: false },
-              { text: 'Zerar as taxas cobradas nas transações do sistema PIX', isCorrect: false },
-              { text: 'Aumentar automaticamente o endividamento das famílias de baixa renda', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'Na matemática financeira e nos investimentos de longo prazo, qual conceito explica o crescimento exponencial do patrimônio ao longo do tempo?',
-            explanation: 'Os juros compostos calculam o rendimento sobre o capital inicial acumulado aos juros de períodos anteriores ("juros sobre juros"), gerando curva exponencial.',
-            pointsReward: points,
-            options: [
-              { text: 'Juros compostos e o efeito dos juros sobre o saldo acumulado', isCorrect: true },
-              { text: 'Juros simples com taxa linear sem reinvestimento de proventos', isCorrect: false },
-              { text: 'Flutuação cambial direta sem correção inflacionária', isCorrect: false },
-              { text: 'Depreciação contábil uniforme de ativos intangíveis', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'O que caracteriza o princípio da "Reserva de Emergência" no planejamento financeiro pessoal sustentável?',
-            explanation: 'A reserva de emergência deve ser alocada em ativos de altíssima liquidez (resgate imediato) e baixíssimo risco, cobrindo de 3 a 6 meses do custo de vida.',
-            pointsReward: points,
-            options: [
-              { text: 'Montante equivalente a meses de custo de vida alocado em ativos com liquidez diária e baixo risco', isCorrect: true },
-              { text: 'Investimento integral em ações voláteis e criptoativos de alto risco sem possibilidade de resgate', isCorrect: false },
-              { text: 'Capital destinado exclusivamente à aquisição parcelada de bens de consumo supérfluos', isCorrect: false },
-              { text: 'Linha de crédito rotativo pré-aprovada em instituições financeiras', isCorrect: false },
-            ],
-          },
-        ],
-      };
-    }
-
-    // 6. GEOGRAFIA E MEIO AMBIENTE
-    if (
-      lowerTopic.includes('geografia') ||
-      lowerTopic.includes('bioma') ||
-      lowerTopic.includes('amazônia') ||
-      lowerTopic.includes('amazonia') ||
-      lowerTopic.includes('cerrado') ||
-      lowerTopic.includes('clima')
-    ) {
-      return {
-        title: `Geografia do Brasil: Biomas, Clima e Meio Ambiente`,
-        description: `Aspectos físicos, bacias hidrográficas e biodiversidade dos grandes biomas brasileiros.`,
-        questions: [
-          {
-            statement: 'Considerado a "caixa d’água do Brasil" por abrigar as nascentes das principais bacias hidrográficas do país, qual bioma ocupa a porção central do território?',
-            explanation: 'O Cerrado é o segundo maior bioma do Brasil e abriga as nascentes de importantes bacias hidrográficas (São Francisco, Tocantins-Araguaia e Paraná/Paraguai).',
-            pointsReward: points,
-            options: [
-              { text: 'Cerrado', isCorrect: true },
-              { text: 'Caatinga', isCorrect: false },
-              { text: 'Pantanal', isCorrect: false },
-              { text: 'Pampa', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'Qual é o bioma exclusivamente brasileiro, caracterizado por clima semiárido e vegetação xerófila adaptada a períodos prolongados de estiagem?',
-            explanation: 'A Caatinga é o único bioma cujo território é 100% contido nas fronteiras brasileiras, destacando-se pela vegetação adaptada à escassez hídrica.',
-            pointsReward: points,
-            options: [
-              { text: 'Caatinga', isCorrect: true },
-              { text: 'Mata Atlântica', isCorrect: false },
-              { text: 'Floresta Amazônica', isCorrect: false },
-              { text: 'Cerrado', isCorrect: false },
-            ],
-          },
-          {
-            statement: 'O fenômeno atmosférico conhecido como "Rios Voadores" na América do Sul é gerado principalmente por qual processo biogeográfico?',
-            explanation: 'Os rios voadores são fluxos aéreos massivos de vapor de água produzidos pela evapotranspiração da Floresta Amazônica, que irrigam o Centro-Sul do país.',
-            pointsReward: points,
-            options: [
-              { text: 'Intensa evapotranspiração da Floresta Amazônica transportada pelos ventos alísios', isCorrect: true },
-              { text: 'Derretimento abrupto das geleiras dos Andes durante o inverno', isCorrect: false },
-              { text: 'Evaporação superficial dos reservatórios artificiais do Sudeste', isCorrect: false },
-              { text: 'Correntes de ar polar seco vindas da Antártida', isCorrect: false },
             ],
           },
         ],
