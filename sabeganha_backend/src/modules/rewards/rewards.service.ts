@@ -152,5 +152,88 @@ export class RewardsService {
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  /**
+   * Lista todas as solicitações de resgate para o painel administrativo
+   */
+  async getAllRedemptions(page = 1, limit = 50, status?: string) {
+    const whereClause: any = {};
+    if (status && status !== 'ALL') {
+      whereClause.status = status;
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.redemption.findMany({
+        where: whereClause,
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              profile: {
+                select: {
+                  displayName: true,
+                },
+              },
+            },
+          },
+          reward: {
+            select: {
+              id: true,
+              title: true,
+              partnerName: true,
+            },
+          },
+          voucher: {
+            select: {
+              voucherCode: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.redemption.count({ where: whereClause }),
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  /**
+   * Atualização de status de resgate com estorno contábil opcional no Ledger
+   */
+  async updateRedemptionStatus(redemptionId: string, newStatus: string, reason?: string) {
+    const redemption = await this.prisma.redemption.findUnique({
+      where: { id: redemptionId },
+      include: { reward: true },
+    });
+
+    if (!redemption) {
+      throw new NotFoundException('Resgate não encontrado.');
+    }
+
+    if (newStatus === 'CANCELLED' && redemption.status !== 'CANCELLED') {
+      await this.walletService.credit(
+        redemption.userId,
+        Number(redemption.costPoints),
+        redemption.currencyType,
+        'REDEMPTION_REFUND',
+        `refund_${redemption.id}_${Date.now()}`,
+        `Estorno de resgate cancelado: ${reason || 'Cancelado pelo administrador'}`,
+      );
+    }
+
+    return this.prisma.redemption.update({
+      where: { id: redemptionId },
+      data: { status: newStatus },
+    });
+  }
 }
 

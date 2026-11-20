@@ -33,6 +33,9 @@ export default function RootLayout({
               <a href="/rewards" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800">
                 🎁 Catálogo de Prêmios
               </a>
+              <a href="/withdrawals" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800">
+                💸 Saques & Pix
+              </a>
               <a href="/ledger" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800">
                 📒 Ledger & Finanças
               </a>
